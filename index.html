@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>FuelFlow Pro — Enterprise Fuel Station Management</title>
-    
+
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f2b46'/><path d='M30 30 h25 v50 h-25 z M55 40 h15 v10 c0 5-15 5-15 10 v20 h-15' stroke='%23f5a623' stroke-width='6' fill='none' stroke-linejoin='round'/><circle cx='42' cy='45' r='5' fill='%23f5a623'/></svg>">
 
@@ -46,7 +46,7 @@
         .w-full { width: 100%; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-        /* Detailed Landing Page */
+        /* ============ LANDING PAGE ============ */
         .landing {
             position: fixed; inset: 0; z-index: 2000;
             background: #071a2b;
@@ -56,8 +56,8 @@
         .landing-nav {
             display: flex; justify-content: space-between; align-items: center;
             padding: 20px 60px; position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-            background: rgba(7, 26, 43, 0.9); backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            background: rgba(7, 26, 43, 0.92); backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         .landing-nav .brand { font-size: 24px; font-weight: 800; display: flex; align-items: center; gap: 12px; letter-spacing: -0.5px; }
         .landing-nav .brand i { color: var(--accent); font-size: 28px; }
@@ -68,11 +68,11 @@
         .hero {
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             text-align: center; padding: 180px 20px 80px; position: relative;
-            background: radial-gradient(circle at top right, rgba(245,166,35,0.15) 0%, transparent 50%),
-                        radial-gradient(circle at bottom left, rgba(30,74,110,0.4) 0%, transparent 50%);
+            background: radial-gradient(circle at top right, rgba(245,166,35,0.12) 0%, transparent 50%),
+                        radial-gradient(circle at bottom left, rgba(30,74,110,0.35) 0%, transparent 50%);
         }
         .hero-badge {
-            background: rgba(245, 166, 35, 0.12); border: 1px solid rgba(245, 166, 35, 0.35);
+            background: rgba(245, 166, 35, 0.12); border: 1px solid rgba(245, 166, 35, 0.3);
             color: var(--accent); padding: 8px 22px; border-radius: 40px;
             font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 28px;
         }
@@ -85,7 +85,7 @@
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
         .hero p {
-            font-size: clamp(16px, 2vw, 20px); opacity: 0.8; max-width: 700px;
+            font-size: clamp(16px, 2vw, 20px); opacity: 0.78; max-width: 700px;
             line-height: 1.6; margin-bottom: 44px;
         }
         .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
@@ -96,14 +96,14 @@
         }
         .btn-hero.primary {
             background: var(--accent); color: #071a2b;
-            box-shadow: 0 12px 40px rgba(245, 166, 35, 0.4);
+            box-shadow: 0 12px 40px rgba(245, 166, 35, 0.35);
         }
-        .btn-hero.primary:hover { background: var(--accent-hover); transform: translateY(-3px); box-shadow: 0 18px 50px rgba(245, 166, 35, 0.5); }
-        .btn-hero.secondary { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.2); }
+        .btn-hero.primary:hover { background: var(--accent-hover); transform: translateY(-3px); box-shadow: 0 18px 50px rgba(245, 166, 35, 0.45); }
+        .btn-hero.secondary { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.18); }
         .btn-hero.secondary:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-3px); }
 
         .section-title { text-align: center; font-size: 36px; font-weight: 800; margin-bottom: 16px; letter-spacing: -1px; }
-        .section-sub { text-align: center; font-size: 16px; color: rgba(255,255,255,0.6); margin-bottom: 60px; }
+        .section-sub { text-align: center; font-size: 16px; color: rgba(255,255,255,0.55); margin-bottom: 60px; }
 
         /* Features Grid */
         .features-grid {
@@ -111,7 +111,7 @@
             gap: 24px; max-width: 1200px; margin: 0 auto 100px; padding: 0 40px;
         }
         .feature-card {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
             border-radius: 20px; padding: 32px; transition: 0.3s;
         }
         .feature-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(245, 166, 35, 0.3); transform: translateY(-5px); }
@@ -119,56 +119,105 @@
         .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
         .feature-card p { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; }
 
-        /* Screenshots */
-        .screenshots-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 30px; max-width: 1200px; margin: 0 auto 100px; padding: 0 40px;
+        /* Highlights (replaces screenshots) */
+        .highlights {
+            max-width: 1100px; margin: 0 auto 100px; padding: 0 40px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
         }
-        .screenshot-card {
-            background: rgba(255,255,255,0.05); border-radius: 20px; overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.1); box-shadow: var(--shadow-lg);
-            transition: 0.3s;
+        .highlight-item {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px; padding: 24px; display: flex; align-items: flex-start; gap: 14px;
+            transition: 0.25s;
         }
-        .screenshot-card:hover { transform: scale(1.02); border-color: var(--accent); }
-        .screenshot-card img { width: 100%; height: auto; display: block; }
-        .screenshot-caption { padding: 16px; text-align: center; font-weight: 600; font-size: 15px; }
+        .highlight-item:hover { border-color: var(--accent); background: rgba(245,166,35,0.06); }
+        .highlight-item .hl-icon {
+            width: 44px; height: 44px; border-radius: 12px; background: rgba(245,166,35,0.15);
+            display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 20px; flex-shrink: 0;
+        }
+        .highlight-item .hl-text h4 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .highlight-item .hl-text p { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.5; }
 
         /* Contact Section */
         .contact-section {
-            max-width: 800px; margin: 0 auto 100px; padding: 0 20px;
+            max-width: 760px; margin: 0 auto 100px; padding: 0 20px;
         }
         .contact-card {
-            background: white; color: var(--text); border-radius: 24px; padding: 40px;
-            box-shadow: var(--shadow-lg);
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px; padding: 40px; backdrop-filter: blur(6px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
         }
-        .contact-card h2 { font-size: 28px; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
-        .contact-card p { color: var(--text-light); margin-bottom: 30px; font-size: 15px; }
-        
+        .contact-card h2 { font-size: 28px; font-weight: 800; margin-bottom: 10px; color: #ffffff; }
+        .contact-card p { color: rgba(255,255,255,0.65); margin-bottom: 30px; font-size: 15px; }
+
         .contact-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         .contact-form .form-group { margin-bottom: 20px; }
-        .contact-form label { display: block; font-weight: 600; font-size: 13px; color: var(--primary); margin-bottom: 8px; }
-        .contact-form input, .contact-form textarea {
-            width: 100%; padding: 14px 16px; border: 1.5px solid var(--border);
-            border-radius: 12px; font-size: 15px; transition: 0.2s; background: #fafcfe;
+        
+        /* --- FIXED: Labels are now explicitly white with high specificity --- */
+        .contact-form label, 
+        .contact-form .form-group label { 
+            display: block; 
+            font-weight: 700; 
+            font-size: 12px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            color: #ffffff !important; 
+            margin-bottom: 8px; 
         }
-        .contact-form input:focus, .contact-form textarea:focus {
-            border-color: var(--primary-light); outline: none;
-            box-shadow: 0 0 0 4px rgba(30, 74, 110, 0.1); background: white;
+        
+        /* Input fields: White background, black text */
+        .contact-form input {
+            width: 100%; padding: 14px 16px; border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 12px; font-size: 15px; transition: 0.2s; 
+            background: #ffffff;
+            color: #000000; 
         }
+        
+        /* Textarea: Dark background, white text */
+        .contact-form textarea {
+            width: 100%; padding: 14px 16px; border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 12px; font-size: 15px; transition: 0.2s; 
+            background: rgba(255,255,255,0.06);
+            color: #ffffff;
+        }
+
+        .contact-form input::placeholder { color: #888888; } 
+        .contact-form textarea::placeholder { color: rgba(255,255,255,0.3); } 
+        
+        .contact-form input:focus {
+            border-color: var(--accent); outline: none;
+            box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.12); 
+            background: #ffffff;
+        }
+        .contact-form textarea:focus {
+            border-color: var(--accent); outline: none;
+            box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.12); 
+            background: rgba(255,255,255,0.09);
+        }
+
         .contact-form button {
-            width: 100%; padding: 16px; background: var(--primary); color: white;
-            border: none; border-radius: 12px; font-size: 16px; font-weight: 700;
-            cursor: pointer; transition: 0.2s;
+            width: 100%; padding: 16px; background: var(--accent); color: #071a2b;
+            border: none; border-radius: 12px; font-size: 16px; font-weight: 800;
+            cursor: pointer; transition: 0.2s; letter-spacing: 0.3px;
         }
-        .contact-form button:hover { background: var(--primary-light); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15, 43, 70, 0.3); }
+        .contact-form button:hover { background: var(--accent-hover); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(245,166,35,0.3); }
+
+        /* Inline contact status message */
+        .contact-status {
+            margin-top: 16px; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600;
+            display: none; align-items: center; gap: 10px; line-height: 1.4;
+        }
+        .contact-status.show { display: flex; }
+        .contact-status.success { background: rgba(46, 125, 50, 0.2); border: 1px solid rgba(46, 125, 50, 0.5); color: #a5d6a7; }
+        .contact-status.error { background: rgba(198, 40, 40, 0.2); border: 1px solid rgba(198, 40, 40, 0.5); color: #ef9a9a; }
 
         .landing-footer {
             padding: 30px 60px; display: flex; justify-content: space-between;
-            align-items: center; font-size: 13px; color: rgba(255,255,255,0.4);
-            border-top: 1px solid rgba(255,255,255,0.1);
+            align-items: center; font-size: 13px; color: rgba(255,255,255,0.35);
+            border-top: 1px solid rgba(255,255,255,0.08);
         }
 
-        /* Login Modal */
+        /* ============ LOGIN MODAL ============ */
         .login-overlay {
             position: fixed; inset: 0; background: rgba(7, 26, 43, 0.85);
             backdrop-filter: blur(12px); display: flex; justify-content: center;
@@ -193,7 +242,7 @@
         .form-group label { display: block; font-weight: 600; font-size: 12px; color: var(--primary); margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase; }
         .form-group input { width: 100%; padding: 13px 15px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 14px; transition: 0.2s; background: #fafcfe; }
         .form-group input:focus { border-color: var(--primary-light); outline: none; box-shadow: 0 0 0 4px rgba(30, 74, 110, 0.08); background: white; }
-        
+
         .btn-login {
             width: 100%; padding: 15px;
             background: linear-gradient(135deg, var(--primary), var(--primary-light));
@@ -207,7 +256,7 @@
         .login-close span { font-size: 13px; color: var(--text-light); cursor: pointer; text-decoration: underline; }
         .login-close span:hover { color: var(--primary); }
 
-        /* Dashboard Shell */
+        /* ============ DASHBOARD SHELL ============ */
         .app-shell { height: 100vh; display: flex; flex-direction: column; }
         .topbar {
             background: white; padding: 0 24px; height: 64px;
@@ -434,14 +483,14 @@
         .report-filters .form-group { margin-bottom: 0; }
         .report-filters input[type="date"] { max-width: 160px; padding: 8px 12px; font-size: 13px; }
         .quick-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
-        
+
         .report-table { width: 100%; border-collapse: collapse; min-width: 100%; }
         .report-table th { padding: 12px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-light); font-weight: 800; border-bottom: 2px solid var(--border); text-align: left; }
         .report-table td { padding: 14px 10px; border-bottom: 1px solid #f0f4f9; font-size: 14px; }
         .report-table tr:last-child td { border-bottom: none; }
         .report-table .label { color: var(--text); font-weight: 500; }
         .report-table .value { text-align: right; font-weight: 700; }
-        
+
         /* Print Styles for PDF */
         @media print {
             body * { visibility: hidden; }
@@ -457,7 +506,7 @@
         @media (max-width: 1024px) {
             .company-card .co-stats { grid-template-columns: repeat(2, 1fr); }
             .grid-2 { grid-template-columns: 1fr; }
-            .screenshots-grid { grid-template-columns: 1fr; padding: 0 20px; }
+            .highlights { padding: 0 20px; }
         }
 
         @media (max-width: 768px) {
@@ -477,7 +526,7 @@
             .station-selector { max-width: 120px; padding: 4px 10px; }
             .station-selector select { font-size: 11px; max-width: 80px; }
             .hamburger { display: flex; }
-            
+
             .sidebar {
                 position: absolute; top: 0; left: 0; height: 100%;
                 transform: translateX(-100%); z-index: 500;
@@ -490,7 +539,7 @@
             .stat-card { padding: 14px; }
             .stat-card .value { font-size: 20px; }
             .modal-card { padding: 20px; }
-            
+
             .report-filters { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
             .report-filters input[type="date"] { max-width: 100%; }
         }
@@ -508,13 +557,13 @@
     <div class="spinner"></div> Connecting...
 </div>
 
-<!-- DETAILED LANDING PAGE -->
+<!-- ============ LANDING PAGE ============ -->
 <div id="landingPage" class="landing hidden">
     <nav class="landing-nav">
         <div class="brand"><i class="fas fa-gas-pump"></i> FuelFlow Pro</div>
         <div class="nav-links">
             <span onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">Features</span>
-            <span onclick="document.getElementById('screenshots').scrollIntoView({behavior:'smooth'})">Screenshots</span>
+            <span onclick="document.getElementById('highlights').scrollIntoView({behavior:'smooth'})">Highlights</span>
             <span onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">Contact</span>
             <span onclick="showLogin()" style="color:var(--accent); font-weight:700;">Login</span>
         </div>
@@ -567,17 +616,26 @@
         </div>
     </div>
 
-    <div id="screenshots">
-        <div class="section-title">Take a look inside</div>
-        <div class="section-sub">Powerful tools designed to be simple.</div>
-        <div class="screenshots-grid">
-            <div class="screenshot-card">
-                <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" alt="Dashboard">
-                <div class="screenshot-caption">Real-time Live Dashboard</div>
+    <!-- Replaces screenshots with a new creative highlight section -->
+    <div id="highlights">
+        <div class="section-title">Why operators choose FuelFlow Pro</div>
+        <div class="section-sub">Practical features, real results.</div>
+        <div class="highlights">
+            <div class="highlight-item">
+                <div class="hl-icon"><i class="fas fa-tachometer-alt"></i></div>
+                <div class="hl-text"><h4>Real-Time Metering</h4><p>Know exactly how many litres each pump has dispensed at any moment.</p></div>
             </div>
-            <div class="screenshot-card">
-                <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" alt="Reports">
-                <div class="screenshot-caption">Detailed Financial Reports</div>
+            <div class="highlight-item">
+                <div class="hl-icon"><i class="fas fa-shield-virus"></i></div>
+                <div class="hl-text"><h4>Theft Detection</h4><p>Automated variance flags catch shortages before they become losses.</p></div>
+            </div>
+            <div class="highlight-item">
+                <div class="hl-icon"><i class="fas fa-mobile-alt"></i></div>
+                <div class="hl-text"><h4>Mobile Money Ready</h4><p>Track Airtel, MTN MoMo, and cash side-by-side in every shift close.</p></div>
+            </div>
+            <div class="highlight-item">
+                <div class="hl-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                <div class="hl-text"><h4>One-Click Reports</h4><p>Export daily performance summaries as PDF or CSV for your accountant.</p></div>
             </div>
         </div>
     </div>
@@ -586,33 +644,33 @@
         <div class="contact-card">
             <h2>Get in touch</h2>
             <p>Interested in setting up FuelFlow Pro for your business? Leave us a message and our team will get back to you.</p>
-            
-            <!-- FormSubmit Widget connected to brightmesh.app@gmail.com -->
-            <form class="contact-form" action="https://formsubmit.co/brightmesh.app@gmail.com" method="POST">
-                <!-- FormSubmit Configuration -->
+
+            <!-- FormSubmit form with inline status -->
+            <form class="contact-form" id="contactForm">
                 <input type="hidden" name="_subject" value="New Inquiry from FuelFlow Pro Landing Page">
                 <input type="hidden" name="_captcha" value="false">
                 <input type="hidden" name="_template" value="table">
-                
+
                 <div class="form-row">
                     <div class="form-group" style="margin-bottom:0;">
                         <label>Full Name</label>
-                        <input type="text" name="name" placeholder="John Doe" required>
+                        <input type="text" name="name" id="contactName" placeholder="John Doe" required>
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label>Email Address</label>
-                        <input type="email" name="email" placeholder="john@example.com" required>
+                        <input type="email" name="email" id="contactEmail" placeholder="john@example.com" required>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Company Name</label>
-                    <input type="text" name="company" placeholder="Your Company Ltd">
+                    <input type="text" name="company" id="contactCompany" placeholder="Your Company Ltd">
                 </div>
                 <div class="form-group">
                     <label>Message</label>
-                    <textarea name="message" rows="4" placeholder="Tell us about your station requirements..." required></textarea>
+                    <textarea name="message" id="contactMessage" rows="4" placeholder="Tell us about your station requirements..." required></textarea>
                 </div>
-                <button type="submit">Send Message</button>
+                <button type="submit" id="contactSubmitBtn">Send Message</button>
+                <div class="contact-status" id="contactStatus"></div>
             </form>
         </div>
     </div>
@@ -623,7 +681,7 @@
     </footer>
 </div>
 
-<!-- LOGIN -->
+<!-- ============ LOGIN ============ -->
 <div id="loginModal" class="login-overlay hidden">
     <div class="login-card">
         <div class="icon-circle"><i class="fas fa-gas-pump"></i></div>
@@ -645,7 +703,7 @@
     </div>
 </div>
 
-<!-- COMPANY DASHBOARD -->
+<!-- ============ COMPANY DASHBOARD ============ -->
 <div id="dashboardPage" class="app-shell hidden">
     <header class="topbar">
         <div class="flex gap-12">
@@ -676,7 +734,7 @@
     </div>
 </div>
 
-<!-- ADMIN DASHBOARD -->
+<!-- ============ ADMIN DASHBOARD ============ -->
 <div id="adminPage" class="app-shell hidden">
     <header class="topbar">
         <div class="flex gap-12">
@@ -705,7 +763,7 @@
 
 <div id="toastContainer"></div>
 
-<!-- FIREBASE -->
+<!-- ============ FIREBASE ============ -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-analytics.js";
@@ -919,7 +977,7 @@ function initApp() {
     }
 
     function refreshAdminPage() {
-        const activePage = $('.nav-item.active')?.dataset.page;
+        const activePage = $('.nav-item.admin-active')?.dataset.page;
         if (activePage) renderAdminPage(activePage);
     }
 
@@ -948,13 +1006,13 @@ function initApp() {
                 if (adminSnap.empty) { hideLoading(); $('#loginError').textContent = 'Admin not initialized.'; return; }
                 const adminData = adminSnap.docs[0].data();
                 if (adminData.password !== password) { hideLoading(); $('#loginError').textContent = 'Invalid admin password.'; return; }
-                
+
                 state.isAdmin = true;
                 state.adminSession = { uid: 'admin', name: adminData.name || 'Super Admin' };
                 state.currentUser = null;
-                
+
                 localStorage.setItem('ff_session', JSON.stringify({ type: 'admin' }));
-                
+
                 hideLoading();
                 $('#loginModal').classList.add('hidden');
                 $('#landingPage').classList.add('hidden');
@@ -963,7 +1021,7 @@ function initApp() {
                 $('#adminName').textContent = adminData.name || 'Super Admin';
                 await loadAdminData();
                 buildAdminSidebar();
-                navigateAdminTo('companies');
+                navigateAdminTo('all-users');
                 toast('Welcome, Super Admin!', 'purple');
                 return;
             }
@@ -988,7 +1046,7 @@ function initApp() {
 
             state.isAdmin = false;
             state.currentUser = userData;
-            
+
             localStorage.setItem('ff_session', JSON.stringify({ type: 'user', userId: userData._docId }));
 
             hideLoading();
@@ -1032,6 +1090,7 @@ function initApp() {
         $('#loginUsername').value = '';
         $('#loginPassword').value = '';
         document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('adminSidebar').classList.remove('open');
     }
 
     $('#btnLogout').addEventListener('click', handleLogout);
@@ -1058,7 +1117,7 @@ function initApp() {
                 $('#adminName').textContent = adminData.name || 'Super Admin';
                 await loadAdminData();
                 buildAdminSidebar();
-                navigateAdminTo('companies');
+                navigateAdminTo('all-users');
             } else if (session.type === 'user') {
                 const userSnap = await getDoc(doc(db, 'users', session.userId));
                 if (!userSnap.exists()) throw new Error('User missing');
@@ -1278,7 +1337,7 @@ function initApp() {
 
     function navigateAdminTo(page) {
         $$('#adminSidebar .nav-item').forEach(el => {
-            el.classList.remove('active');
+            el.classList.remove('admin-active');
             if (el.dataset.page === page) el.classList.add('admin-active');
         });
         renderAdminPage(page);
@@ -1584,15 +1643,23 @@ function initApp() {
 
     // ================= ADMIN: ALL USERS =================
     function renderAdminAllUsers(el) {
+        // Build a list of all users, including those without a company (or orphaned)
+        const allUsers = state.users;
         el.innerHTML = `
             <div class="page-header">
                 <h1><i class="fas fa-users" style="color:var(--purple);"></i> All Platform Users</h1>
+                <div class="actions">
+                    <span class="badge badge-purple">${allUsers.length} total</span>
+                </div>
+            </div>
+            <div class="purple-box mb-16">
+                <i class="fas fa-info-circle"></i> Every user account in the system is listed below. You can edit or delete any account. Use this to clean up test users.
             </div>
             <div class="card table-responsive">
                 <table>
                     <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Company</th><th>Actions</th></tr></thead>
                     <tbody>
-                        ${state.users.length ? state.users.map(u => {
+                        ${allUsers.length ? allUsers.map(u => {
                             const company = state.companies.find(c => c._docId === u.companyId);
                             return `<tr>
                                 <td><strong>${u.name}</strong></td>
@@ -1660,7 +1727,7 @@ function initApp() {
     window.deleteAdminUser = async function(docId) {
         const u = state.users.find(x => x._docId === docId);
         if (!u) return;
-        if (!confirm(`Delete user "${u.name}" (@${u.username})?`)) return;
+        if (!confirm(`Delete user "${u.name}" (@${u.username})? This cannot be undone.`)) return;
         try {
             await deleteDoc(doc(db, 'users', docId));
             await adminLog('delete_user', `Deleted user: ${u.username}`);
@@ -1736,15 +1803,14 @@ function initApp() {
         const shifts = stationData('shifts');
         const activeShifts = shifts.filter(s => s.status === 'Active');
         const closedShifts = shifts.filter(s => s.status === 'Closed');
-        
-        // Use proper date parsing for today's shifts
+
         const tDate = new Date();
         tDate.setHours(0,0,0,0);
         const todayClosed = closedShifts.filter(s => {
             const sd = new Date(s.date);
             return sd >= tDate;
         });
-        
+
         const totalRevenue = todayClosed.reduce((sum, s) => sum + (s.expectedSales || 0), 0);
         const totalCash = todayClosed.reduce((sum, s) => sum + (s.cash || 0), 0);
         const totalMobile = todayClosed.reduce((sum, s) => sum + (s.mobile || 0), 0);
@@ -1753,8 +1819,6 @@ function initApp() {
         const totalExpenses = todayClosed.reduce((sum, s) => sum + (s.expenses || 0), 0);
         const totalVariance = todayClosed.reduce((sum, s) => sum + (s.variance || 0), 0);
         const totalLitres = todayClosed.reduce((sum, s) => sum + (s.litresSold || 0), 0);
-        
-        const lowStockTanks = tanks.filter(t => t.capacity > 0 && t.stock / t.capacity < 0.2);
 
         el.innerHTML = `
             <div class="page-header">
@@ -2253,7 +2317,7 @@ function initApp() {
         if (!customer) return;
         const ledger = state.customerLedger.filter(l => l.customerId === customerId).sort((a,b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
         const balance = ledger.reduce((sum, l) => sum + (l.type === 'sale' ? l.amount : -l.amount), 0);
-        
+
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -3085,7 +3149,7 @@ function initApp() {
                     <button class="btn btn-outline" onclick="exportCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
                 </div>
             </div>
-            
+
             <div class="report-filters">
                 <div class="form-group">
                     <label>Report Date</label>
@@ -3109,9 +3173,9 @@ function initApp() {
     window.setReportDate = function(range) {
         const d = new Date();
         let dateStr;
-        
+
         function formatDate(date) { return date.toISOString().slice(0, 10); }
-        
+
         if (range === 'today') {
             dateStr = formatDate(d);
         } else if (range === 'yesterday') {
@@ -3124,7 +3188,7 @@ function initApp() {
         } else if (range === 'this_month') {
             dateStr = formatDate(new Date(d.getFullYear(), d.getMonth(), 1));
         }
-        
+
         $('#repDate').value = dateStr;
         updateReport();
     };
@@ -3133,18 +3197,16 @@ function initApp() {
         const dateStr = $('#repDate').value;
         if (!dateStr) return;
 
-        // Filter data based on the selected date
         const shifts = stationData('shifts').filter(s => s.status === 'Closed' && s.date === dateStr);
         const purchases = stationData('purchases').filter(p => p.date.startsWith(dateStr));
         const dipping = stationData('dipping').filter(d => d.date.startsWith(dateStr));
-        
+
         const customerLedger = stationData('customer_ledger').filter(l => {
             if (!l.timestamp) return false;
             const ld = new Date(l.timestamp.seconds * 1000).toISOString().slice(0, 10);
             return ld === dateStr;
         });
 
-        // Calculations
         const totalSales = shifts.reduce((sum, s) => sum + (s.expectedSales || 0), 0);
         const petrolLitres = shifts.reduce((sum, s) => {
             const pump = state.pumps.find(p => p.id === s.pump);
@@ -3154,17 +3216,17 @@ function initApp() {
             const pump = state.pumps.find(p => p.id === s.pump);
             return sum + ((pump && pump.product === 'Diesel') ? (s.litresSold || 0) : 0);
         }, 0);
-        
+
         const totalExpenses = shifts.reduce((sum, s) => sum + (s.expenses || 0), 0);
         const totalPurchasesCost = purchases.reduce((sum, p) => sum + (p.qty * p.costPerLitre), 0);
-        const grossProfit = totalSales - totalPurchasesCost; 
-        
+        const grossProfit = totalSales - totalPurchasesCost;
+
         const totalCash = shifts.reduce((sum, s) => sum + (s.cash || 0), 0);
         const totalAirtel = shifts.reduce((sum, s) => sum + (s.airtel || 0), 0);
         const totalMomo = shifts.reduce((sum, s) => sum + (s.momo || 0), 0);
-        
+
         const totalCredit = customerLedger.filter(l => l.type === 'sale').reduce((sum, l) => sum + l.amount, 0);
-        
+
         let dipGain = 0, dipLoss = 0;
         dipping.forEach(d => {
             const v = d.physical - d.expected;
@@ -3172,7 +3234,6 @@ function initApp() {
             else dipLoss += Math.abs(v);
         });
 
-        // Build HTML strictly matching screenshot format
         const html = `
             <div class="card" id="pdfReportArea">
                 <div class="card-header" style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
@@ -3191,87 +3252,29 @@ function initApp() {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td class="label">Total Tanks</td>
-                                <td class="value">${stationData('tanks').length}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Total Pumps</td>
-                                <td class="value">${stationData('pumps').length}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Active Shifts</td>
-                                <td class="value">${stationData('shifts').filter(s => s.status === 'Active').length}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Closed Shifts</td>
-                                <td class="value">${shifts.length}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Total Litres Sold (Closed)</td>
-                                <td class="value">${fmt(petrolLitres + dieselLitres)} L</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Total Revenue (Closed)</td>
-                                <td class="value">${ugx(totalSales)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Net Variance</td>
-                                <td class="value ${totalSales - totalPurchasesCost < 0 ? 'text-danger' : 'text-success'}">${ugx(totalSales - totalPurchasesCost)}</td>
-                            </tr>
-                            
-                            <!-- Detailed Breakdown requested -->
+                            <tr><td class="label">Total Tanks</td><td class="value">${stationData('tanks').length}</td></tr>
+                            <tr><td class="label">Total Pumps</td><td class="value">${stationData('pumps').length}</td></tr>
+                            <tr><td class="label">Active Shifts</td><td class="value">${stationData('shifts').filter(s => s.status === 'Active').length}</td></tr>
+                            <tr><td class="label">Closed Shifts</td><td class="value">${shifts.length}</td></tr>
+                            <tr><td class="label">Total Litres Sold (Closed)</td><td class="value">${fmt(petrolLitres + dieselLitres)} L</td></tr>
+                            <tr><td class="label">Total Revenue (Closed)</td><td class="value">${ugx(totalSales)}</td></tr>
+                            <tr><td class="label">Net Variance</td><td class="value ${totalSales - totalPurchasesCost < 0 ? 'text-danger' : 'text-success'}">${ugx(totalSales - totalPurchasesCost)}</td></tr>
+
                             <tr style="background: #f4f7fb;"><td colspan="2" style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-light); padding-top: 20px; border-bottom: none;">Financial Details</td></tr>
-                            <tr>
-                                <td class="label">Total Sales (Petrol + Diesel)</td>
-                                <td class="value">${ugx(totalSales)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Gross Profit</td>
-                                <td class="value text-success">${ugx(grossProfit)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Total Expenses</td>
-                                <td class="value text-danger">${ugx(totalExpenses)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Cash at Hand</td>
-                                <td class="value">${ugx(totalCash)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Airtel Money</td>
-                                <td class="value">${ugx(totalAirtel)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">MTN MoMo</td>
-                                <td class="value">${ugx(totalMomo)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Total Credit</td>
-                                <td class="value text-warning">${ugx(totalCredit)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Purchases Cost</td>
-                                <td class="value">${ugx(totalPurchasesCost)}</td>
-                            </tr>
-                            
+                            <tr><td class="label">Total Sales (Petrol + Diesel)</td><td class="value">${ugx(totalSales)}</td></tr>
+                            <tr><td class="label">Gross Profit</td><td class="value text-success">${ugx(grossProfit)}</td></tr>
+                            <tr><td class="label">Total Expenses</td><td class="value text-danger">${ugx(totalExpenses)}</td></tr>
+                            <tr><td class="label">Cash at Hand</td><td class="value">${ugx(totalCash)}</td></tr>
+                            <tr><td class="label">Airtel Money</td><td class="value">${ugx(totalAirtel)}</td></tr>
+                            <tr><td class="label">MTN MoMo</td><td class="value">${ugx(totalMomo)}</td></tr>
+                            <tr><td class="label">Total Credit</td><td class="value text-warning">${ugx(totalCredit)}</td></tr>
+                            <tr><td class="label">Purchases Cost</td><td class="value">${ugx(totalPurchasesCost)}</td></tr>
+
                             <tr style="background: #f4f7fb;"><td colspan="2" style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-light); padding-top: 20px; border-bottom: none;">Inventory & Pricing</td></tr>
-                            <tr>
-                                <td class="label">Dipping Variance (Gain)</td>
-                                <td class="value text-success">+${fmt(dipGain)} L</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Dipping Variance (Loss)</td>
-                                <td class="value text-danger">-${fmt(dipLoss)} L</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Petrol Price/L</td>
-                                <td class="value">${ugx(state.prices['Petrol']?.price || 0)}</td>
-                            </tr>
-                            <tr>
-                                <td class="label">Diesel Price/L</td>
-                                <td class="value">${ugx(state.prices['Diesel']?.price || 0)}</td>
-                            </tr>
+                            <tr><td class="label">Dipping Variance (Gain)</td><td class="value text-success">+${fmt(dipGain)} L</td></tr>
+                            <tr><td class="label">Dipping Variance (Loss)</td><td class="value text-danger">-${fmt(dipLoss)} L</td></tr>
+                            <tr><td class="label">Petrol Price/L</td><td class="value">${ugx(state.prices['Petrol']?.price || 0)}</td></tr>
+                            <tr><td class="label">Diesel Price/L</td><td class="value">${ugx(state.prices['Diesel']?.price || 0)}</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -3553,6 +3556,97 @@ function initApp() {
         const v = parseInt($('#setThreshold').value);
         if (v && v > 0) { state.varianceThreshold = v; toast('Threshold updated to ' + v + ' L.'); }
     };
+
+    // ================= CONTACT FORM (inline) =================
+    const contactForm = document.getElementById('contactForm');
+    if (contactForm) {
+        contactForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const statusEl = document.getElementById('contactStatus');
+            const submitBtn = document.getElementById('contactSubmitBtn');
+            const name = document.getElementById('contactName').value.trim();
+            const email = document.getElementById('contactEmail').value.trim();
+            const company = document.getElementById('contactCompany').value.trim();
+            const message = document.getElementById('contactMessage').value.trim();
+
+            if (!name || !email || !message) {
+                statusEl.className = 'contact-status show error';
+                statusEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please fill in all required fields.';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            statusEl.className = 'contact-status';
+            statusEl.innerHTML = '';
+
+            try {
+                // Submit to FormSubmit via fetch, but with no redirect
+                const response = await fetch('https://formsubmit.co/brightmesh.app@gmail.com', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        name, email, company, message,
+                        _subject: 'New Inquiry from FuelFlow Pro Landing Page',
+                        _captcha: 'false',
+                        _template: 'table'
+                    })
+                });
+
+                if (response.ok) {
+                    statusEl.className = 'contact-status show success';
+                    statusEl.innerHTML = '<i class="fas fa-check-circle"></i> Message sent successfully! We will get back to you soon.';
+                    contactForm.reset();
+                } else {
+                    throw new Error('FormSubmit responded with error');
+                }
+            } catch (err) {
+                // Fallback: use a hidden iframe approach for FormSubmit to avoid page redirect
+                try {
+                    const iframe = document.createElement('iframe');
+                    iframe.name = 'formsubmit_iframe';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+
+                    const form = document.createElement('form');
+                    form.action = 'https://formsubmit.co/brightmesh.app@gmail.com';
+                    form.method = 'POST';
+                    form.target = 'formsubmit_iframe';
+                    form.style.display = 'none';
+
+                    const fields = {
+                        name, email, company, message,
+                        _subject: 'New Inquiry from FuelFlow Pro Landing Page',
+                        _captcha: 'false',
+                        _template: 'table'
+                    };
+                    for (const [key, val] of Object.entries(fields)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = val;
+                        form.appendChild(input);
+                    }
+                    document.body.appendChild(form);
+                    form.submit();
+
+                    setTimeout(() => {
+                        statusEl.className = 'contact-status show success';
+                        statusEl.innerHTML = '<i class="fas fa-check-circle"></i> Message sent successfully! We will get back to you soon.';
+                        contactForm.reset();
+                        iframe.remove();
+                        form.remove();
+                    }, 800);
+                } catch (fallbackErr) {
+                    statusEl.className = 'contact-status show error';
+                    statusEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> Failed to send message. Please try again later or email us directly at brightmesh.app@gmail.com.';
+                }
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Send Message';
+            }
+        });
+    }
 
     // ================= INIT =================
     (async function() {
