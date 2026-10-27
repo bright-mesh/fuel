@@ -9,6 +9,8 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f2b46'/><path d='M30 30 h25 v50 h-25 z M55 40 h15 v10 c0 5-15 5-15 10 v20 h-15' stroke='%23f5a623' stroke-width='6' fill='none' stroke-linejoin='round'/><circle cx='42' cy='45' r='5' fill='%23f5a623'/></svg>">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <style>
         :root {
             --primary: #0f2b46;
@@ -503,6 +505,7 @@
 
         /* Print Styles for PDF */
         @media print {
+            html, body, #dashboardPage, #mainContent { height: auto !important; overflow: visible !important; }
             body * { visibility: hidden; }
             #pdfReportArea, #pdfReportArea * { visibility: visible; }
             #pdfReportArea { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
@@ -777,7 +780,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-analytics.js";
-    import { getFirestore, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, setDoc, writeBatch, increment, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -792,11 +795,11 @@
 
     const app = initializeApp(firebaseConfig);
     const analytics = getAnalytics(app);
-    const db = getFirestore(app);
+    let db; try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); } catch (e) { db = getFirestore(app); }
     const auth = getAuth(app);
 
     window.firebase = {
-        db, auth, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
+        setDoc, writeBatch, increment, db, auth, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
         query, where, onSnapshot, serverTimestamp, orderBy, limit,
         signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged
     };
@@ -819,7 +822,7 @@ function toggleSidebar() {
 }
 
 function initApp() {
-    const { db, auth, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
+    const { setDoc, writeBatch, increment, db, auth, collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
             query, where, onSnapshot, serverTimestamp, orderBy, limit,
             signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } = window.firebase;
 
@@ -880,7 +883,8 @@ function initApp() {
         ready: false,
         synced: {},
         pendingSubs: [],
-        report: null
+        report: null,
+        priceDocs: []
     };
 
     // ---------- HELPERS ----------
@@ -888,8 +892,10 @@ function initApp() {
     function ugx(n) { return 'UGX ' + fmt(n); }
     function $(sel) { return document.querySelector(sel); }
     function $$(sel) { return document.querySelectorAll(sel); }
-    function nowStr() { return new Date().toISOString().slice(0, 16).replace('T', ' '); }
-    function today() { return new Date().toISOString().slice(0, 10); }
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function localYmd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+    function nowStr() { const d = new Date(); return localYmd(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+    function today() { return localYmd(new Date()); }
     function genCode(prefix) { return prefix + '-' + Math.random().toString(36).substring(2, 7).toUpperCase(); }
 
     function toast(msg, type = 'success') {
@@ -1215,7 +1221,9 @@ function initApp() {
             subscribeToCollection('suppliers', (d) => state.suppliers = d.filter(s => s.companyId === companyId));
             subscribeToCollection('maintenance', (d) => state.maintenance = d.filter(m => m.companyId === companyId || state.stations.some(s => s._docId === m.stationId)));
             subscribeToCollection('approvals', (d) => state.approvals = d.filter(a => a.companyId === companyId));
+            subscribeToCollection('prices', (d) => { state.priceDocs = d.filter(x => x.companyId === companyId); applyPrices(); });
             subscribeToCollection('audit_logs', (d) => state.auditLogs = d.filter(a => a.companyId === companyId).sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
+            try { const sd = await getDoc(doc(db, 'settings', companyId)); if (sd.exists() && sd.data().varianceThreshold) state.varianceThreshold = sd.data().varianceThreshold; } catch (e) {}
             // Wait until every listener has delivered its first snapshot (max 12s) BEFORE the UI renders
             await Promise.race([
                 Promise.all(state.pendingSubs),
@@ -1247,6 +1255,15 @@ function initApp() {
         } finally { hideLoading(); }
     }
 
+    const DEFAULT_PRICES = JSON.parse(JSON.stringify(state.prices));
+    let pendingCredit = { ids: [], total: 0 };
+    function nextNum(list) { return list.reduce((m, x) => Math.max(m, parseInt(String(x.id).replace(/\D/g, '')) || 0), 0) + 1; }
+    function applyPrices() {
+        const sid = state.currentStation?._docId;
+        const pr = JSON.parse(JSON.stringify(DEFAULT_PRICES));
+        (state.priceDocs || []).filter(d => d.stationId === sid).forEach(d => { pr[d.product] = { price: d.price, effective: d.effective }; });
+        state.prices = pr;
+    }
     function stationData(name) {
         const sid = state.currentStation?._docId;
         if (!sid) return [];
@@ -1361,6 +1378,7 @@ function initApp() {
         const station = state.stations.find(s => s._docId === stationId);
         if (station) {
             state.currentStation = station;
+            applyPrices();
             toast(`Switched to ${station.name}`);
             refreshCurrentPage();
         }
@@ -1853,12 +1871,7 @@ function initApp() {
         const activeShifts = shifts.filter(s => s.status === 'Active');
         const closedShifts = shifts.filter(s => s.status === 'Closed');
 
-        const tDate = new Date();
-        tDate.setHours(0,0,0,0);
-        const todayClosed = closedShifts.filter(s => {
-            const sd = new Date(s.date);
-            return sd >= tDate;
-        });
+        const todayClosed = closedShifts.filter(s => String(s.date).slice(0, 10) >= today());
 
         const totalRevenue = todayClosed.reduce((sum, s) => sum + (s.expectedSales || 0), 0);
         const totalCash = todayClosed.reduce((sum, s) => sum + (s.cash || 0), 0);
@@ -1908,7 +1921,7 @@ function initApp() {
             <div class="card">
                 <div class="card-header"><h3><i class="fas fa-clock"></i> Active Shifts</h3><button class="btn btn-sm btn-accent" onclick="openShiftModal()"><i class="fas fa-plus"></i> New</button></div>
                 ${activeShifts.length ? `<div class="table-responsive"><table><thead><tr><th>Shift</th><th>Attendant</th><th>Pump</th><th>Opening</th><th>Price/L</th><th>Actions</th></tr></thead><tbody>${activeShifts.map(s => {
-                    const pump = state.pumps.find(p => p.id === s.pump);
+                    const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
                     return `<tr><td><strong>${s.id}</strong></td><td>${s.attendant}</td><td>${pump ? pump.name : s.pump}</td><td>${fmt(s.opening)}</td><td>${ugx(s.price)}</td><td><button class="btn btn-xs btn-primary" onclick="closeShiftModal('${s._docId}')">Close</button></td></tr>`;
                 }).join('')}</tbody></table></div>` : '<p class="text-light text-center" style="padding:20px">No active shifts.</p>'}
             </div>
@@ -2034,7 +2047,7 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-database"></i> ${t ? 'Edit' : 'Add'} Tank</h3>
-                <div class="form-group"><label>Tank ID</label><input type="text" id="tkId" value="${t ? t.id : 'T-' + String(state.tanks.length + 1).padStart(2, '0')}" ${t ? 'readonly' : ''}></div>
+                <div class="form-group"><label>Tank ID</label><input type="text" id="tkId" value="${t ? t.id : 'T-' + String(nextNum(stationData('tanks'))).padStart(2, '0')}" ${t ? 'readonly' : ''}></div>
                 <div class="form-group"><label>Name</label><input type="text" id="tkName" value="${t ? t.name : ''}"></div>
                 <div class="form-group"><label>Product</label>
                     <select id="tkProduct" class="modern-select">
@@ -2158,7 +2171,7 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-oil-can"></i> ${p ? 'Edit' : 'Add'} Pump</h3>
-                <div class="form-group"><label>Pump ID</label><input type="text" id="pmId" value="${p ? p.id : 'P-' + String(state.pumps.length + 1).padStart(2, '0')}" ${p ? 'readonly' : ''}></div>
+                <div class="form-group"><label>Pump ID</label><input type="text" id="pmId" value="${p ? p.id : 'P-' + String(nextNum(stationData('pumps'))).padStart(2, '0')}" ${p ? 'readonly' : ''}></div>
                 <div class="form-group"><label>Name</label><input type="text" id="pmName" value="${p ? p.name : ''}"></div>
                 <div class="form-group"><label>Product</label>
                     <select id="pmProduct" class="modern-select">
@@ -2578,25 +2591,30 @@ function initApp() {
         const product = $('#puProduct').value;
         const ordered = parseInt($('#puOrdered').value) || 0;
         const invoiced = parseInt($('#puInvoiced').value) || 0;
-        const qty = parseInt($('#puQty').value);
+        const qty = parseFloat($('#puQty').value);
         const cost = parseInt($('#puCost').value);
         const tankId = $('#puTank').value;
         const ref = $('#puRef').value.trim();
-        if (!supplier || !qty || !cost || !ref) { toast('Fill required fields.', 'error'); return; }
+        if (!supplier || !(qty > 0) || !(cost > 0) || !ref) { toast('Fill required fields.', 'error'); return; }
         try {
-            const tank = state.tanks.find(t => t.id === tankId);
-            await addDoc(collection(db, 'purchases'), {
+            const sid = state.currentStation._docId;
+            const tank = state.tanks.find(t => t.id === tankId && t.stationId === sid);
+            if (tank && tank.capacity && tank.stock + qty > tank.capacity &&
+                !confirm(`This delivery (${fmt(qty)} L) exceeds the free space in ${tank.name} (${fmt(Math.max(0, tank.capacity - tank.stock))} L). Record anyway?`)) return;
+            const batch = writeBatch(db);
+            batch.set(doc(collection(db, 'purchases')), {
                 date: nowStr(), supplier, product, ordered, invoiced, qty, costPerLitre: cost, tank: tankId, ref,
-                verified: true, stationId: state.currentStation._docId, companyId: state.currentUser.companyId
+                shortfall: invoiced > 0 ? invoiced - qty : 0, verified: true, stationId: sid, companyId: state.currentUser.companyId
             });
             if (tank) {
-                const newStock = tank.stock + qty;
-                await updateDoc(doc(db, 'tanks', tank._docId), { stock: newStock });
-                await addDoc(collection(db, 'ledger'), {
-                    tankId: tank.id, tankName: tank.name, type: 'purchase', qty, balanceAfter: newStock, ref,
-                    userName: state.currentUser.name, stationId: state.currentStation._docId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
+                batch.update(doc(db, 'tanks', tank._docId), { stock: increment(qty) });
+                batch.set(doc(collection(db, 'ledger')), {
+                    tankId: tank.id, tankName: tank.name, type: 'purchase', qty, balanceAfter: tank.stock + qty, ref,
+                    userName: state.currentUser.name, stationId: sid, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
                 });
             }
+            await batch.commit();
+            if (invoiced > 0 && qty < invoiced) toast(`Shortfall: invoiced ${fmt(invoiced)} L, received ${fmt(qty)} L.`, 'error');
             await logAudit('purchase', 'purchase', ref, `Received ${fmt(qty)} L ${product} from ${supplier}`);
             document.querySelector('.modal-overlay').remove();
             toast(`Delivery recorded. Tank updated.`);
@@ -2609,19 +2627,21 @@ function initApp() {
         if (!p) return;
         if (!confirm(`Delete purchase ${p.ref}? This will reverse the tank stock increase.`)) return;
         try {
-            const tank = state.tanks.find(t => t.id === p.tank);
+            const tank = state.tanks.find(t => t.id === p.tank && t.stationId === p.stationId);
+            const batch = writeBatch(db);
             if (tank) {
-                const newStock = Math.max(0, tank.stock - p.qty);
-                await updateDoc(doc(db, 'tanks', tank._docId), { stock: newStock });
-                await addDoc(collection(db, 'ledger'), {
-                    tankId: tank.id, tankName: tank.name, type: 'adjustment', qty: -p.qty, balanceAfter: newStock, ref: 'DELETE-' + p.ref,
-                    userName: state.currentUser.name, stationId: state.currentStation._docId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
+                batch.update(doc(db, 'tanks', tank._docId), { stock: increment(-p.qty) });
+                batch.set(doc(collection(db, 'ledger')), {
+                    tankId: tank.id, tankName: tank.name, type: 'adjustment', qty: -p.qty, balanceAfter: tank.stock - p.qty, ref: 'DELETE-' + p.ref,
+                    userName: state.currentUser.name, stationId: p.stationId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
                 });
             }
-            await deleteDoc(doc(db, 'purchases', docId));
+            batch.delete(doc(db, 'purchases', docId));
+            await batch.commit();
             await logAudit('delete', 'purchase', docId, `Deleted purchase: ${p.ref}`);
             toast('Purchase deleted. Tank stock reversed.', 'warning');
-        } catch (e) { toast('Failed to delete purchase.', 'error'); }
+            if (tank && tank.stock - p.qty < 0) toast(`${tank.name} stock is now negative. Check records.`, 'error');
+        } catch (e) { console.error(e); toast('Failed to delete purchase. Nothing was changed.', 'error'); }
     };
 
     // ================= PRICE BOARD =================
@@ -2699,13 +2719,13 @@ function initApp() {
                 <div class="stat-card"><div class="label">Net Variance</div><div class="value ${totalVariance < 0 ? 'text-danger' : 'text-success'}">${totalVariance > 0 ? '+' : ''}${ugx(Math.abs(totalVariance))}</div></div>
             </div>
             ${active.length ? `<div class="card table-responsive"><div class="card-header"><h3><i class="fas fa-clock text-success"></i> Active Shifts</h3></div><table><thead><tr><th>ID</th><th>Attendant</th><th>Pump</th><th>Opening</th><th>Price/L</th><th>Actions</th></tr></thead><tbody>${active.map(s => {
-                const pump = state.pumps.find(p => p.id === s.pump);
+                const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
                 return `<tr><td><strong>${s.id}</strong></td><td>${s.attendant}</td><td>${pump ? pump.name : s.pump}</td><td>${fmt(s.opening)}</td><td>${ugx(s.price)}</td><td><button class="btn btn-xs btn-primary" onclick="closeShiftModal('${s._docId}')">Close</button></td></tr>`;
             }).join('')}</tbody></table></div>` : ''}
             <div class="card">
                 <div class="card-header"><h3><i class="fas fa-history"></i> Closed Shifts</h3><span class="badge badge-blue">${closed.length} records</span></div>
                 ${closed.length ? `<div class="table-responsive"><table><thead><tr><th>ID</th><th>Date</th><th>Attendant</th><th>Pump</th><th>Opening</th><th>Closing</th><th>Litres</th><th>Expected</th><th>Variance</th><th>Status</th><th>Actions</th></tr></thead><tbody>${closed.map(s => {
-                    const pump = state.pumps.find(p => p.id === s.pump);
+                    const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
                     const v = s.variance || 0;
                     const varBadge = Math.abs(v) > 50000 ? 'badge-red' : Math.abs(v) > 5000 ? 'badge-yellow' : 'badge-green';
                     const statusText = Math.abs(v) > 50000 ? 'RED FLAG' : Math.abs(v) > 5000 ? 'Review' : 'Reconciled';
@@ -2728,7 +2748,7 @@ function initApp() {
     window.viewShiftModal = function(docId) {
         const s = state.shifts.find(x => x._docId === docId);
         if (!s) return;
-        const pump = state.pumps.find(p => p.id === s.pump);
+        const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -2760,23 +2780,24 @@ function initApp() {
         if (!isManagerOrOwner()) { toast('Only owners/managers can delete.', 'error'); return; }
         const s = state.shifts.find(x => x._docId === docId);
         if (!s) return;
-        if (!confirm(`Delete shift ${s.id}? This will restore ${fmt(s.litresSold || 0)} L to the tank.`)) return;
+        const restore = s.status === 'Closed' ? (s.litresSold || 0) : 0;
+        if (!confirm(`Delete shift ${s.id}?` + (restore ? ` This will restore ${fmt(restore)} L to the tank.` : ''))) return;
         try {
-            const pump = state.pumps.find(p => p.id === s.pump);
-            if (pump && s.litresSold) {
-                const tank = state.tanks.find(t => t.id === pump.tankId);
-                if (tank) {
-                    await updateDoc(doc(db, 'tanks', tank._docId), { stock: tank.stock + s.litresSold });
-                    await addDoc(collection(db, 'ledger'), {
-                        tankId: tank.id, tankName: tank.name, type: 'adjustment', qty: s.litresSold, balanceAfter: tank.stock + s.litresSold,
-                        ref: 'DELETE-' + s.id, userName: state.currentUser.name, stationId: state.currentStation._docId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
-                    });
-                }
+            const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
+            const tank = pump && state.tanks.find(t => t.id === pump.tankId && t.stationId === s.stationId);
+            const batch = writeBatch(db);
+            if (tank && restore) {
+                batch.update(doc(db, 'tanks', tank._docId), { stock: increment(restore) });
+                batch.set(doc(collection(db, 'ledger')), {
+                    tankId: tank.id, tankName: tank.name, type: 'adjustment', qty: restore, balanceAfter: tank.stock + restore,
+                    ref: 'DELETE-' + s.id, userName: state.currentUser.name, stationId: s.stationId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
+                });
             }
-            await deleteDoc(doc(db, 'shifts', docId));
+            batch.delete(doc(db, 'shifts', docId));
+            await batch.commit();
             await logAudit('delete', 'shift', docId, `Deleted shift: ${s.id}`);
-            toast('Shift deleted. Tank restored.', 'warning');
-        } catch (e) { toast('Failed to delete shift.', 'error'); }
+            toast(restore ? 'Shift deleted. Tank restored.' : 'Shift deleted.', 'warning');
+        } catch (e) { console.error(e); toast('Failed to delete shift. Nothing was changed.', 'error'); }
     };
 
     window.openShiftModal = function() {
@@ -2816,16 +2837,16 @@ function initApp() {
     window.saveShift = async function() {
         const attendant = $('#shAttendant').value;
         const pumpId = $('#shPump').value;
-        const opening = parseInt($('#shOpening').value);
+        const opening = parseFloat($('#shOpening').value);
         const price = parseInt($('#shPrice').value);
-        if (!opening && opening !== 0) { toast('Enter opening meter.', 'error'); return; }
+        if (isNaN(opening) || opening < 0) { toast('Enter a valid opening meter.', 'error'); return; }
         if (!price || price <= 0) { toast('Enter valid price.', 'error'); return; }
         const pump = state.pumps.find(p => p.id === pumpId);
         if (!pump) return;
         const conflict = state.shifts.find(s => s.pump === pumpId && s.status === 'Active');
         if (conflict) { toast(`Pump already has active shift.`, 'error'); return; }
         try {
-            const newId = 'S-' + (1044 + state.shifts.length);
+            const newId = 'S-' + (Math.max(1043, ...state.shifts.map(x => parseInt(String(x.id).replace(/\D/g, '')) || 0)) + 1);
             const ref = await addDoc(collection(db, 'shifts'), {
                 id: newId, attendant, pump: pumpId, opening, closing: opening, price,
                 cash: 0, mobile: 0, airtel: 0, momo: 0, expenses: 0, status: 'Active',
@@ -2840,7 +2861,7 @@ function initApp() {
     window.closeShiftModal = function(docId) {
         const s = state.shifts.find(x => x._docId === docId);
         if (!s) return;
-        const pump = state.pumps.find(p => p.id === s.pump);
+        const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -2852,6 +2873,7 @@ function initApp() {
                 <div class="form-group"><label>Airtel Money (UGX)</label><input type="number" id="clAirtel" value="0"></div>
                 <div class="form-group"><label>MTN MoMo (UGX)</label><input type="number" id="clMomo" value="0"></div>
                 <div class="form-group"><label>Expenses (UGX)</label><input type="number" id="clExpenses" value="0"></div>
+                <div class="form-group"><label>Credit given (UGX) — today's unlinked credit sales</label><input type="number" id="clCredit" value="${(() => { const u = state.customerLedger.filter(l => l.type === 'sale' && l.stationId === s.stationId && !l.shiftId && tsToYmd(l.timestamp) === today()); pendingCredit = { ids: u.map(l => l._docId), total: u.reduce((t, l) => t + (Number(l.amount) || 0), 0) }; return pendingCredit.total; })()}"></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
                     <button class="btn btn-primary" onclick="confirmCloseShift('${docId}')">Submit</button>
@@ -2864,39 +2886,39 @@ function initApp() {
     window.confirmCloseShift = async function(docId) {
         const s = state.shifts.find(x => x._docId === docId);
         if (!s) return;
-        const closing = parseInt($('#clMeter').value);
-        const cash = parseInt($('#clCash').value) || 0;
-        const airtel = parseInt($('#clAirtel').value) || 0;
-        const momo = parseInt($('#clMomo').value) || 0;
-        const expenses = parseInt($('#clExpenses').value) || 0;
-        if (closing < s.opening) { toast('Closing < opening.', 'error'); return; }
-        const litresSold = closing - s.opening;
-        const expectedSales = litresSold * s.price;
-        const totalAccounted = cash + airtel + momo + expenses;
+        const closing = parseFloat($('#clMeter').value);
+        const cash = parseFloat($('#clCash').value) || 0;
+        const airtel = parseFloat($('#clAirtel').value) || 0;
+        const momo = parseFloat($('#clMomo').value) || 0;
+        const expenses = parseFloat($('#clExpenses').value) || 0;
+        const credit = parseFloat($('#clCredit')?.value) || 0;
+        if (isNaN(closing) || closing < s.opening) { toast('Closing meter must be a number not below opening.', 'error'); return; }
+        if ([cash, airtel, momo, expenses, credit].some(v => v < 0)) { toast('Amounts cannot be negative.', 'error'); return; }
+        const litresSold = Math.round((closing - s.opening) * 100) / 100;
+        const expectedSales = Math.round(litresSold * s.price);
+        const totalAccounted = cash + airtel + momo + expenses + credit;
         const variance = totalAccounted - expectedSales;
         const flag = Math.abs(variance) > 50000 ? 'danger' : Math.abs(variance) > 5000 ? 'warning' : 'success';
         try {
-            await updateDoc(doc(db, 'shifts', docId), {
-                closing, cash, airtel, momo, expenses, status: 'Closed',
-                litresSold, expectedSales, totalAccounted, variance, flag, locked: true
-            });
-            const pump = state.pumps.find(p => p.id === s.pump);
-            if (pump) {
-                await updateDoc(doc(db, 'pumps', pump._docId), { lastMeter: closing });
-                const tank = state.tanks.find(t => t.id === pump.tankId);
-                if (tank) {
-                    const newStock = Math.max(0, tank.stock - litresSold);
-                    await updateDoc(doc(db, 'tanks', tank._docId), { stock: newStock });
-                    await addDoc(collection(db, 'ledger'), {
-                        tankId: tank.id, tankName: tank.name, type: 'sale', qty: -litresSold, balanceAfter: newStock, ref: s.id,
-                        userName: state.currentUser.name, stationId: state.currentStation._docId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
-                    });
-                }
+            const pump = state.pumps.find(p => p.id === s.pump && p.stationId === s.stationId);
+            const tank = pump && state.tanks.find(t => t.id === pump.tankId && t.stationId === s.stationId);
+            const batch = writeBatch(db);   // all-or-nothing
+            batch.update(doc(db, 'shifts', docId), { closing, cash, airtel, momo, expenses, credit, status: 'Closed', litresSold, expectedSales, totalAccounted, variance, flag, locked: true });
+            if (pump) batch.update(doc(db, 'pumps', pump._docId), { lastMeter: closing });
+            if (tank) {
+                batch.update(doc(db, 'tanks', tank._docId), { stock: increment(-litresSold) });
+                batch.set(doc(collection(db, 'ledger')), {
+                    tankId: tank.id, tankName: tank.name, type: 'sale', qty: -litresSold, balanceAfter: tank.stock - litresSold, ref: s.id,
+                    userName: state.currentUser.name, stationId: s.stationId, companyId: state.currentUser.companyId, timestamp: serverTimestamp()
+                });
             }
+            if (credit > 0 && credit === pendingCredit.total) pendingCredit.ids.forEach(id => batch.update(doc(db, 'customer_ledger', id), { shiftId: s.id }));
+            await batch.commit();
             await logAudit('shift_close', 'shift', docId, `Closed ${s.id}. Variance: ${variance}`);
             document.querySelector('.modal-overlay').remove();
             toast(`Shift closed. Variance: ${variance > 0 ? '+' : ''}${ugx(Math.abs(variance))}.`, Math.abs(variance) > 50000 ? 'error' : 'success');
-        } catch (e) { toast('Failed to close shift.', 'error'); }
+            if (tank && tank.stock - litresSold < 0) toast(`${tank.name} stock is now negative. Check meters and deliveries.`, 'error');
+        } catch (e) { console.error(e); toast('Failed to close shift. Nothing was changed.', 'error'); }
     };
 
     // ================= LEDGER =================
@@ -2975,10 +2997,10 @@ function initApp() {
 
     window.saveDipping = async function() {
         const tankId = $('#dpTank').value;
-        const physical = parseInt($('#dpPhysical').value);
+        const physical = parseFloat($('#dpPhysical').value);
         const notes = $('#dpNotes').value.trim();
-        if (!physical && physical !== 0) { toast('Enter physical stock.', 'error'); return; }
-        const tank = state.tanks.find(t => t.id === tankId);
+        if (isNaN(physical) || physical < 0) { toast('Enter a valid physical stock.', 'error'); return; }
+        const tank = state.tanks.find(t => t.id === tankId && t.stationId === state.currentStation._docId);
         const expected = tank ? tank.stock : 0;
         try {
             await addDoc(collection(db, 'dipping'), {
@@ -2987,6 +3009,10 @@ function initApp() {
             });
             const v = physical - expected;
             await logAudit('dipping', 'dipping', tankId, `Physical: ${physical}, Expected: ${expected}, Variance: ${v}`);
+            if (tank && Math.abs(v) > state.varianceThreshold) {
+                await requestApproval('stock_adjustment', { tankDocId: tank._docId, type: 'set', qty: physical, source: 'dipping' },
+                    `Dipping variance ${v > 0 ? '+' : ''}${fmt(v)} L on ${tank.name} (physical ${fmt(physical)} L vs system ${fmt(expected)} L). Approve to set stock to the physical reading.`);
+            }
             document.querySelector('.modal-overlay').remove();
             if (Math.abs(v) > state.varianceThreshold) toast(`⚠️ Variance exceeds threshold!`, 'error');
             else toast('Dipping recorded.');
@@ -3262,7 +3288,7 @@ function initApp() {
         // A just-written serverTimestamp is null until the server confirms it: treat that as "now"
         if (!ts) return today();
         const ms = typeof ts.toMillis === 'function' ? ts.toMillis() : (ts.seconds != null ? ts.seconds * 1000 : null);
-        return ms == null ? today() : new Date(ms).toISOString().slice(0, 10);
+        return ms == null ? today() : localYmd(new Date(ms));
     }
 
     function computeReport(from, to) {
@@ -3276,12 +3302,16 @@ function initApp() {
         const sum = (arr, fn) => arr.reduce((t, x) => t + (Number(fn(x)) || 0), 0);
         const totalSales = sum(shifts, s => s.expectedSales);
         const totalLitres = sum(shifts, s => s.litresSold);
-        const byProduct = {};
+        const PRODUCTS = ['Petrol', 'Diesel', 'Kerosene'];
+        const byProduct = {}, salesByProduct = {};
+        PRODUCTS.forEach(k => { byProduct[k] = 0; salesByProduct[k] = 0; });
         shifts.forEach(s => {
             const pump = stPumps.find(p => p.id === s.pump);
-            const prod = pump ? pump.product : 'Unknown pump';
+            const prod = pump && pump.product ? pump.product : 'Other / Unknown pump';
             byProduct[prod] = (byProduct[prod] || 0) + (Number(s.litresSold) || 0);
+            salesByProduct[prod] = (salesByProduct[prod] || 0) + (Number(s.expectedSales) || 0);
         });
+        const productKeys = PRODUCTS.concat(Object.keys(byProduct).filter(k => !PRODUCTS.includes(k) && (byProduct[k] || salesByProduct[k])));
         const totalExpenses = sum(shifts, s => s.expenses);
         const totalPurchasesCost = sum(purchases, p => (Number(p.qty) || 0) * (Number(p.costPerLitre) || 0));
         const shiftVariance = sum(shifts, s => s.variance);
@@ -3296,6 +3326,16 @@ function initApp() {
             if (v > 0) dipGain += v; else dipLoss += Math.abs(v);
         });
 
+        const costFor = (prod) => {
+            const pp = stationData('purchases').filter(x => x.product === prod && String(x.date).slice(0, 10) <= to && Number(x.qty) > 0);
+            const inP = pp.filter(x => inRange(x.date));
+            const use = inP.length ? inP : pp.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 1);
+            const q = use.reduce((t, x) => t + Number(x.qty), 0);
+            return q ? use.reduce((t, x) => t + Number(x.qty) * (Number(x.costPerLitre) || 0), 0) / q : 0;
+        };
+        let cogs = 0; const noCost = [];
+        productKeys.forEach(k => { if (!byProduct[k]) return; const c = costFor(k); if (!c) noCost.push(k); cogs += byProduct[k] * c; });
+        const grossProfit = totalSales - cogs;
         const rows = [];
         const sec = (label) => rows.push({ section: label });
         const row = (label, value, cls) => rows.push({ label, value, cls: cls || '' });
@@ -3305,14 +3345,18 @@ function initApp() {
         row('Total Pumps', stPumps.length);
         row('Active Shifts', stationData('shifts').filter(s => s.status === 'Active').length);
         row('Closed Shifts (period)', shifts.length);
-        row('Total Litres Sold (Closed)', fmt(totalLitres) + ' L');
-        Object.keys(byProduct).sort().forEach(k => row('  ' + k + ' litres', fmt(byProduct[k]) + ' L'));
+        productKeys.forEach(k => row('Total Litres Sold (' + k + ')', fmt(byProduct[k]) + ' L'));
+        row('Total Litres Sold (All Products)', fmt(totalLitres) + ' L');
         row('Total Revenue (Closed)', ugx(totalSales));
         row('Net Shift Variance', (shiftVariance > 0 ? '+' : shiftVariance < 0 ? '-' : '') + ugx(Math.abs(shiftVariance)), shiftVariance < 0 ? 'text-danger' : 'text-success');
 
         sec('Financial Details');
-        row('Total Sales (meter-based)', ugx(totalSales));
-        row('Sales less Purchases', ugx(totalSales - totalPurchasesCost), totalSales - totalPurchasesCost < 0 ? 'text-danger' : 'text-success');
+        productKeys.forEach(k => row('Total Sales (' + k + ')', ugx(salesByProduct[k])));
+        row('Total Sales (All Products)', ugx(totalSales));
+        row('Cost of Goods Sold (avg purchase cost)', ugx(Math.round(cogs)));
+        row('Gross Profit', ugx(Math.round(grossProfit)), grossProfit < 0 ? 'text-danger' : 'text-success');
+        row('Gross Margin', (totalSales ? (grossProfit / totalSales * 100).toFixed(1) : '0.0') + ' %', grossProfit < 0 ? 'text-danger' : 'text-success');
+        if (noCost.length) row('No purchase cost on record for', noCost.join(', '), 'text-warning');
         row('Total Expenses', ugx(totalExpenses), 'text-danger');
         row('Cash at Hand', ugx(totalCash));
         row('Airtel Money', ugx(totalAirtel));
@@ -3408,7 +3452,49 @@ function initApp() {
     };
 
     window.downloadReportPDF = function() {
-        window.print();
+        if (!state.currentUser) return;
+        if (!state.report) state.report = { mode: 'today', ...reportRangeFor('today') };
+        const { from, to } = state.report;
+        const J = window.jspdf && window.jspdf.jsPDF;
+        if (!J) { toast('PDF library could not load; opening print dialog instead.', 'info'); window.print(); return; }
+        try {
+            const rep = computeReport(from, to);
+            const company = state.companies.find(c => c._docId === state.currentUser.companyId)?.name || '-';
+            const station = state.currentStation?.name || '-';
+            const period = from === to ? from : `${from} to ${to}`;
+            const doc = new J({ unit: 'pt', format: 'a4' });
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(15, 43, 70);
+            doc.text('FuelFlow Pro - Station Performance Report', 40, 50);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90, 100, 115);
+            doc.text(`Company: ${company}    Station: ${station}`, 40, 70);
+            doc.text(`Period: ${period}    Generated: ${nowStr()}`, 40, 85);
+            const body = rep.rows.map(x => x.section
+                ? [{ content: x.section.toUpperCase(), colSpan: 2, styles: { fillColor: [232, 238, 246], textColor: [80, 95, 115], fontStyle: 'bold', fontSize: 8 } }]
+                : [x.label.trim(), { content: String(x.value), styles: { halign: 'right', fontStyle: 'bold' } }]);
+            doc.autoTable({
+                startY: 100, head: [['METRIC', 'VALUE']], body, theme: 'grid',
+                styles: { fontSize: 10, cellPadding: 6, lineColor: [224, 232, 240], textColor: [26, 43, 60] },
+                headStyles: { fillColor: [15, 43, 70], textColor: 255, halign: 'left' },
+                columnStyles: { 1: { halign: 'right' } },
+                margin: { left: 40, right: 40, bottom: 40 },
+                didParseCell: (d) => {
+                    if (d.section === 'body' && d.column.index === 1) {
+                        const r = rep.rows[d.row.index];
+                        if (r && r.cls === 'text-danger') d.cell.styles.textColor = [198, 40, 40];
+                        else if (r && r.cls === 'text-success') d.cell.styles.textColor = [46, 125, 50];
+                        else if (r && r.cls === 'text-warning') d.cell.styles.textColor = [200, 130, 0];
+                    }
+                }
+            });
+            const pages = doc.getNumberOfPages();
+            for (let i = 1; i <= pages; i++) {
+                doc.setPage(i); doc.setFontSize(8); doc.setTextColor(130);
+                doc.text(`FuelFlow Pro - ${station} - ${period}`, 40, doc.internal.pageSize.getHeight() - 20);
+                doc.text(`Page ${i} of ${pages}`, doc.internal.pageSize.getWidth() - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
+            }
+            doc.save(`fuelflow-report-${station.replace(/[^a-z0-9]+/gi, '-')}-${from}${to !== from ? '_to_' + to : ''}.pdf`);
+            toast('PDF downloaded.');
+        } catch (e) { console.error('PDF error:', e); toast('PDF failed; opening print dialog instead.', 'error'); window.print(); }
     };
 
     window.exportCSV = function() {
@@ -3485,29 +3571,34 @@ function initApp() {
     window.approveRequest = async function(docId) {
         const a = state.approvals.find(x => x._docId === docId);
         if (!a) return;
+        if (a.status !== 'pending') { toast('This request was already processed.', 'error'); return; }
         try {
             if (a.type === 'stock_adjustment') {
                 const tank = state.tanks.find(t => t._docId === a.payload.tankDocId);
                 if (tank) {
-                    let newStock = tank.stock;
-                    if (a.payload.type === 'add') newStock += a.payload.qty;
-                    else if (a.payload.type === 'subtract') newStock = Math.max(0, newStock - a.payload.qty);
-                    else if (a.payload.type === 'set') newStock = a.payload.qty;
-                    await updateDoc(doc(db, 'tanks', tank._docId), { stock: newStock });
-                    await addDoc(collection(db, 'ledger'), {
-                        tankId: tank.id, tankName: tank.name, type: 'adjustment', qty: newStock - tank.stock, balanceAfter: newStock,
+                    const q = Number(a.payload.qty) || 0;
+                    const delta = a.payload.type === 'add' ? q : a.payload.type === 'subtract' ? -q : q - tank.stock;
+                    const batch = writeBatch(db);
+                    batch.update(doc(db, 'tanks', tank._docId), a.payload.type === 'set' ? { stock: q } : { stock: increment(delta) });
+                    batch.set(doc(collection(db, 'ledger')), {
+                        tankId: tank.id, tankName: tank.name, type: 'adjustment', qty: delta, balanceAfter: tank.stock + delta,
                         ref: 'APPROVED-' + docId, userName: state.currentUser.name, stationId: tank.stationId,
                         companyId: state.currentUser.companyId, timestamp: serverTimestamp()
                     });
+                    await batch.commit();
                 }
             } else if (a.type === 'price_change') {
-                state.prices[a.payload.product] = { price: a.payload.newPrice, effective: nowStr() };
+                const pSid = a.stationId || state.currentStation._docId;
+                await setDoc(doc(db, 'prices', pSid + '__' + a.payload.product), {
+                    product: a.payload.product, price: a.payload.newPrice, oldPrice: a.payload.oldPrice || 0, effective: nowStr(),
+                    stationId: pSid, companyId: state.currentUser.companyId, approvedBy: state.currentUser.name, approvedAt: serverTimestamp()
+                });
             } else if (a.type === 'shift_correction') {
                 const s = state.shifts.find(x => x._docId === a.payload.shiftDocId);
                 if (s) {
                     const litresSold = a.payload.closing - s.opening;
                     const expectedSales = litresSold * a.payload.price;
-                    const totalAccounted = a.payload.cash + a.payload.airtel + a.payload.momo + a.payload.expenses;
+                    const totalAccounted = a.payload.cash + a.payload.airtel + a.payload.momo + a.payload.expenses + (s.credit || 0);
                     const variance = totalAccounted - expectedSales;
                     await updateDoc(doc(db, 'shifts', s._docId), {
                         closing: a.payload.closing, price: a.payload.price, cash: a.payload.cash,
@@ -3676,14 +3767,47 @@ function initApp() {
             </div>
             <div class="card">
                 <div class="card-header"><h3><i class="fas fa-database"></i> Data</h3></div>
-                <button class="btn btn-outline" onclick="exportCSV()"><i class="fas fa-download"></i> Export All Data (CSV)</button>
+                <button class="btn btn-outline" onclick="exportAllData()"><i class="fas fa-download"></i> Export All Data (CSV)</button>
             </div>
         `;
     }
 
-    window.saveSettings = function() {
-        const v = parseInt($('#setThreshold').value);
-        if (v && v > 0) { state.varianceThreshold = v; toast('Threshold updated to ' + v + ' L.'); }
+    window.saveSettings = async function() {
+        const v = parseFloat($('#setThreshold').value);
+        if (!(v > 0)) { toast('Enter a threshold above 0.', 'error'); return; }
+        state.varianceThreshold = v;
+        try {
+            await setDoc(doc(db, 'settings', state.currentUser.companyId), { varianceThreshold: v, updatedBy: state.currentUser.name, updatedAt: serverTimestamp() }, { merge: true });
+            toast('Threshold saved: ' + v + ' L.');
+        } catch (e) { toast('Applied for this session only; could not save.', 'error'); }
+    };
+
+    window.exportAllData = function() {
+        if (!state.currentUser) return;
+        const fromD = prompt('From date (YYYY-MM-DD), blank = all:', ''); if (fromD === null) return;
+        const toD = prompt('To date (YYYY-MM-DD), blank = all:', today()); if (toD === null) return;
+        const inR = (d) => { const k = String(d || '').slice(0, 10); return (!fromD || k >= fromD) && (!toD || k <= toD); };
+        const val = (x) => (x && typeof x === 'object' && x.toMillis) ? localYmd(new Date(x.toMillis())) + ' ' + pad2(new Date(x.toMillis()).getHours()) + ':' + pad2(new Date(x.toMillis()).getMinutes()) : (x ?? '');
+        const q = (v) => '"' + String(val(v)).replace(/"/g, '""') + '"';
+        const sets = [
+            ['SHIFTS', 'shifts', ['id','date','attendant','pump','opening','closing','litresSold','price','expectedSales','cash','airtel','momo','credit','expenses','totalAccounted','variance','status'], r => r.date],
+            ['PURCHASES', 'purchases', ['date','supplier','product','ordered','invoiced','qty','costPerLitre','tank','ref'], r => r.date],
+            ['DIPPING', 'dipping', ['date','tankId','physical','expected','by','notes'], r => r.date],
+            ['CASHBOOK', 'cashbook', ['date','type','description','amount','ref','userName'], r => r.date],
+            ['STOCK LEDGER', 'ledger', ['timestamp','tankName','type','qty','balanceAfter','ref','userName'], r => tsToYmd(r.timestamp)],
+            ['CUSTOMER LEDGER', 'customerLedger', ['timestamp','customerId','type','description','amount','shiftId','userName'], r => tsToYmd(r.timestamp)]
+        ];
+        const out = ['Company,' + q(state.companies.find(c => c._docId === state.currentUser.companyId)?.name || '-'), 'Station,' + q(state.currentStation?.name || '-'), 'Period,' + q((fromD || 'start') + ' to ' + (toD || 'now')), ''];
+        sets.forEach(([title, key, cols, dateOf]) => {
+            out.push('### ' + title, cols.map(q).join(','));
+            stationData(key).filter(r => inR(dateOf(r))).forEach(r => out.push(cols.map(c => q(r[c])).join(',')));
+            out.push('');
+        });
+        const blob = new Blob(['\uFEFF' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'fuelflow-all-data-' + (state.currentStation?.name || 'station').replace(/[^a-z0-9]+/gi, '-') + '.csv'; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        toast('Export complete.');
     };
 
     // ================= CONTACT FORM (inline) =================
