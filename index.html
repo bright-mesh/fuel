@@ -875,7 +875,12 @@ function initApp() {
             Kerosene: { price: 5800, effective: '2025-04-10 08:00' }
         },
         varianceThreshold: 100,
-        unsubscribers: []
+        unsubscribers: [],
+        // sync tracking (Reports fix): which collections have delivered their first snapshot
+        ready: false,
+        synced: {},
+        pendingSubs: [],
+        report: null
     };
 
     // ---------- HELPERS ----------
@@ -971,14 +976,36 @@ function initApp() {
     }
 
     // ---------- SUBSCRIPTIONS ----------
-    function subscribeToCollection(name, assignFn) {
-        const unsub = onSnapshot(collection(db, name), (snap) => {
-            const data = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
-            assignFn(data);
+    // Re-render at most once per burst of snapshots (15 listeners used to trigger 15 re-renders)
+    let refreshTimer = null;
+    function scheduleRefresh() {
+        if (!state.ready) return;            // initial load is awaited in loadUserData()
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
             if (state.currentUser && !state.isAdmin) refreshCurrentPage();
             if (state.isAdmin) refreshAdminPage();
+        }, 150);
+    }
+
+    // Returns a promise that resolves when the FIRST snapshot for this collection arrives
+    function subscribeToCollection(name, assignFn) {
+        const p = new Promise((resolve) => {
+            let first = true;
+            const done = () => { if (first) { first = false; resolve(); } };
+            const unsub = onSnapshot(collection(db, name), (snap) => {
+                const data = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+                assignFn(data);
+                state.synced[name] = true;
+                done();
+                scheduleRefresh();
+            }, (err) => {
+                console.error('Snapshot error on ' + name + ':', err);
+                done();                       // don't block the app forever on one failing collection
+            });
+            state.unsubscribers.push(unsub);
         });
-        state.unsubscribers.push(unsub);
+        state.pendingSubs.push(p);
+        return p;
     }
 
     function refreshCurrentPage() {
@@ -1089,6 +1116,8 @@ function initApp() {
         localStorage.removeItem('ff_session');
         state.unsubscribers.forEach(u => { try { u(); } catch (e) {} });
         state.unsubscribers = [];
+        state.ready = false; state.synced = {}; state.pendingSubs = []; state.report = null;
+        clearTimeout(refreshTimer);
         state.currentUser = null;
         state.isAdmin = false;
         state.adminSession = null;
@@ -1158,6 +1187,7 @@ function initApp() {
         showLoading();
         try {
             const companyId = state.currentUser.companyId;
+            state.ready = false; state.synced = {}; state.pendingSubs = [];
 
             const [companiesSnap, stationsSnap, usersSnap] = await Promise.all([
                 getDocs(collection(db, 'companies')),
@@ -1186,7 +1216,14 @@ function initApp() {
             subscribeToCollection('maintenance', (d) => state.maintenance = d.filter(m => m.companyId === companyId || state.stations.some(s => s._docId === m.stationId)));
             subscribeToCollection('approvals', (d) => state.approvals = d.filter(a => a.companyId === companyId));
             subscribeToCollection('audit_logs', (d) => state.auditLogs = d.filter(a => a.companyId === companyId).sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
+            // Wait until every listener has delivered its first snapshot (max 12s) BEFORE the UI renders
+            await Promise.race([
+                Promise.all(state.pendingSubs),
+                new Promise(r => setTimeout(r, 12000))
+            ]);
+            state.ready = true;
         } catch (e) {
+            state.ready = true;
             console.error('Load error:', e);
             toast('Error loading data.', 'error');
         } finally { hideLoading(); }
@@ -1213,7 +1250,9 @@ function initApp() {
     function stationData(name) {
         const sid = state.currentStation?._docId;
         if (!sid) return [];
-        return state[name].filter(item => item.stationId === sid);
+        const KEY_ALIAS = { customer_ledger: 'customerLedger', audit_logs: 'auditLogs' };
+        const list = state[KEY_ALIAS[name] || name] || [];
+        return list.filter(item => item.stationId === sid);
     }
 
     function updateCompanyBadge() {
@@ -3200,7 +3239,101 @@ function initApp() {
     };
 
     // ================= REPORTS =================
+    // ---- Reports -------------------------------------------------------
+    // Dates in this app are stored as UTC 'YYYY-MM-DD' (see today()), so range maths stays in UTC.
+    const REPORT_SOURCES = ['tanks', 'pumps', 'shifts', 'purchases', 'dipping', 'customer_ledger'];
+
+    function ymdAddDays(ymd, n) {
+        const [y, m, d] = ymd.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+    }
+    function ymdWeekday(ymd) {
+        const [y, m, d] = ymd.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    }
+    function reportRangeFor(mode) {
+        const t = today();
+        if (mode === 'yesterday') { const y = ymdAddDays(t, -1); return { from: y, to: y }; }
+        if (mode === 'this_week') { const dow = ymdWeekday(t) || 7; return { from: ymdAddDays(t, -(dow - 1)), to: t }; }
+        if (mode === 'this_month') { return { from: t.slice(0, 8) + '01', to: t }; }
+        return { from: t, to: t };
+    }
+    function tsToYmd(ts) {
+        // A just-written serverTimestamp is null until the server confirms it: treat that as "now"
+        if (!ts) return today();
+        const ms = typeof ts.toMillis === 'function' ? ts.toMillis() : (ts.seconds != null ? ts.seconds * 1000 : null);
+        return ms == null ? today() : new Date(ms).toISOString().slice(0, 10);
+    }
+
+    function computeReport(from, to) {
+        const inRange = (d) => { const k = String(d || '').slice(0, 10); return k !== '' && k >= from && k <= to; };
+        const stPumps = stationData('pumps');
+        const shifts = stationData('shifts').filter(s => s.status === 'Closed' && inRange(s.date));
+        const purchases = stationData('purchases').filter(p => inRange(p.date));
+        const dipping = stationData('dipping').filter(d => inRange(d.date));
+        const ledger = stationData('customer_ledger').filter(l => inRange(tsToYmd(l.timestamp)));
+
+        const sum = (arr, fn) => arr.reduce((t, x) => t + (Number(fn(x)) || 0), 0);
+        const totalSales = sum(shifts, s => s.expectedSales);
+        const totalLitres = sum(shifts, s => s.litresSold);
+        const byProduct = {};
+        shifts.forEach(s => {
+            const pump = stPumps.find(p => p.id === s.pump);
+            const prod = pump ? pump.product : 'Unknown pump';
+            byProduct[prod] = (byProduct[prod] || 0) + (Number(s.litresSold) || 0);
+        });
+        const totalExpenses = sum(shifts, s => s.expenses);
+        const totalPurchasesCost = sum(purchases, p => (Number(p.qty) || 0) * (Number(p.costPerLitre) || 0));
+        const shiftVariance = sum(shifts, s => s.variance);
+        const totalCash = sum(shifts, s => s.cash);
+        const totalAirtel = sum(shifts, s => s.airtel);
+        const totalMomo = sum(shifts, s => s.momo);
+        const totalCredit = sum(ledger.filter(l => l.type === 'sale'), l => l.amount);
+
+        let dipGain = 0, dipLoss = 0;
+        dipping.forEach(d => {
+            const v = (Number(d.physical) || 0) - (Number(d.expected) || 0);
+            if (v > 0) dipGain += v; else dipLoss += Math.abs(v);
+        });
+
+        const rows = [];
+        const sec = (label) => rows.push({ section: label });
+        const row = (label, value, cls) => rows.push({ label, value, cls: cls || '' });
+
+        sec('Summary');
+        row('Total Tanks', stationData('tanks').length);
+        row('Total Pumps', stPumps.length);
+        row('Active Shifts', stationData('shifts').filter(s => s.status === 'Active').length);
+        row('Closed Shifts (period)', shifts.length);
+        row('Total Litres Sold (Closed)', fmt(totalLitres) + ' L');
+        Object.keys(byProduct).sort().forEach(k => row('  ' + k + ' litres', fmt(byProduct[k]) + ' L'));
+        row('Total Revenue (Closed)', ugx(totalSales));
+        row('Net Shift Variance', (shiftVariance > 0 ? '+' : shiftVariance < 0 ? '-' : '') + ugx(Math.abs(shiftVariance)), shiftVariance < 0 ? 'text-danger' : 'text-success');
+
+        sec('Financial Details');
+        row('Total Sales (meter-based)', ugx(totalSales));
+        row('Sales less Purchases', ugx(totalSales - totalPurchasesCost), totalSales - totalPurchasesCost < 0 ? 'text-danger' : 'text-success');
+        row('Total Expenses', ugx(totalExpenses), 'text-danger');
+        row('Cash at Hand', ugx(totalCash));
+        row('Airtel Money', ugx(totalAirtel));
+        row('MTN MoMo', ugx(totalMomo));
+        row('Total Credit Sales', ugx(totalCredit), 'text-warning');
+        row('Purchases Cost', ugx(totalPurchasesCost));
+
+        sec('Inventory & Pricing');
+        row('Dipping Variance (Gain)', '+' + fmt(dipGain) + ' L', 'text-success');
+        row('Dipping Variance (Loss)', '-' + fmt(dipLoss) + ' L', 'text-danger');
+        row('Petrol Price/L', ugx(state.prices['Petrol']?.price || 0));
+        row('Diesel Price/L', ugx(state.prices['Diesel']?.price || 0));
+
+        return { rows, counts: { shifts: shifts.length, purchases: purchases.length, dipping: dipping.length, ledger: ledger.length } };
+    }
+
     function renderReports(el) {
+        if (!state.report) state.report = { mode: 'today', ...reportRangeFor('today') };
+        const r = state.report;
+        const qbtn = (mode, label) =>
+            `<button class="btn btn-sm btn-outline" ${r.mode === mode ? 'style="background:var(--primary);color:#fff;border-color:var(--primary);"' : ''} onclick="setReportDate('${mode}')">${label}</button>`;
         el.innerHTML = `
             <div class="page-header">
                 <h1>Reports</h1>
@@ -3213,134 +3346,65 @@ function initApp() {
             <div class="report-filters">
                 <div class="form-group">
                     <label>Report Date</label>
-                    <input type="date" id="repDate" value="${today()}" onchange="updateReport()">
+                    <input type="date" id="repDate" value="${r.from}" onchange="onReportDateChange(this.value)">
                 </div>
                 <div class="quick-filters">
-                    <button class="btn btn-sm btn-outline" onclick="setReportDate('today')">Today</button>
-                    <button class="btn btn-sm btn-outline" onclick="setReportDate('yesterday')">Yesterday</button>
-                    <button class="btn btn-sm btn-outline" onclick="setReportDate('this_week')">This Week</button>
-                    <button class="btn btn-sm btn-outline" onclick="setReportDate('this_month')">This Month</button>
+                    ${qbtn('today', 'Today')}${qbtn('yesterday', 'Yesterday')}${qbtn('this_week', 'This Week')}${qbtn('this_month', 'This Month')}
                 </div>
             </div>
 
-            <div id="reportContent">
-                <!-- Rendered by updateReport() -->
-            </div>
+            <div id="reportContent"></div>
         `;
         updateReport();
     }
 
-    window.setReportDate = function(range) {
-        const d = new Date();
-        let dateStr;
+    window.setReportDate = function(mode) {
+        state.report = { mode, ...reportRangeFor(mode) };
+        renderReports($('#mainContent'));
+    };
 
-        function formatDate(date) { return date.toISOString().slice(0, 10); }
-
-        if (range === 'today') {
-            dateStr = formatDate(d);
-        } else if (range === 'yesterday') {
-            d.setDate(d.getDate() - 1);
-            dateStr = formatDate(d);
-        } else if (range === 'this_week') {
-            const day = d.getDay() || 7;
-            d.setDate(d.getDate() - day + 1);
-            dateStr = formatDate(d);
-        } else if (range === 'this_month') {
-            dateStr = formatDate(new Date(d.getFullYear(), d.getMonth(), 1));
-        }
-
-        $('#repDate').value = dateStr;
-        updateReport();
+    window.onReportDateChange = function(value) {
+        if (!value) return;
+        state.report = { mode: 'custom', from: value, to: value };
+        renderReports($('#mainContent'));
     };
 
     window.updateReport = function() {
-        const dateStr = $('#repDate').value;
-        if (!dateStr) return;
+        const box = $('#reportContent');
+        if (!box) return;
+        if (!state.report) state.report = { mode: 'today', ...reportRangeFor('today') };
+        const { from, to } = state.report;
+        try {
+            const rep = computeReport(from, to);
+            const missing = REPORT_SOURCES.filter(n => !state.synced[n]);
+            const label = from === to ? from : `${from} → ${to}`;
+            const empty = !rep.counts.shifts && !rep.counts.purchases && !rep.counts.dipping && !rep.counts.ledger;
 
-        const shifts = stationData('shifts').filter(s => s.status === 'Closed' && s.date === dateStr);
-        const purchases = stationData('purchases').filter(p => p.date.startsWith(dateStr));
-        const dipping = stationData('dipping').filter(d => d.date.startsWith(dateStr));
-
-        const customerLedger = stationData('customer_ledger').filter(l => {
-            if (!l.timestamp) return false;
-            const ld = new Date(l.timestamp.seconds * 1000).toISOString().slice(0, 10);
-            return ld === dateStr;
-        });
-
-        const totalSales = shifts.reduce((sum, s) => sum + (s.expectedSales || 0), 0);
-        const petrolLitres = shifts.reduce((sum, s) => {
-            const pump = state.pumps.find(p => p.id === s.pump);
-            return sum + ((pump && pump.product === 'Petrol') ? (s.litresSold || 0) : 0);
-        }, 0);
-        const dieselLitres = shifts.reduce((sum, s) => {
-            const pump = state.pumps.find(p => p.id === s.pump);
-            return sum + ((pump && pump.product === 'Diesel') ? (s.litresSold || 0) : 0);
-        }, 0);
-
-        const totalExpenses = shifts.reduce((sum, s) => sum + (s.expenses || 0), 0);
-        const totalPurchasesCost = purchases.reduce((sum, p) => sum + (p.qty * p.costPerLitre), 0);
-        const grossProfit = totalSales - totalPurchasesCost;
-
-        const totalCash = shifts.reduce((sum, s) => sum + (s.cash || 0), 0);
-        const totalAirtel = shifts.reduce((sum, s) => sum + (s.airtel || 0), 0);
-        const totalMomo = shifts.reduce((sum, s) => sum + (s.momo || 0), 0);
-
-        const totalCredit = customerLedger.filter(l => l.type === 'sale').reduce((sum, l) => sum + l.amount, 0);
-
-        let dipGain = 0, dipLoss = 0;
-        dipping.forEach(d => {
-            const v = d.physical - d.expected;
-            if (v > 0) dipGain += v;
-            else dipLoss += Math.abs(v);
-        });
-
-        const html = `
-            <div class="card" id="pdfReportArea">
-                <div class="card-header" style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
-                    <h3 style="font-size: 18px; color: var(--primary); margin: 0;">
-                        <i class="fas fa-chart-bar" style="color: var(--accent); margin-right: 8px;"></i> Station Performance Summary
-                    </h3>
-                    <span class="badge badge-blue fs-12" style="padding: 6px 12px;">${dateStr}</span>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 50%;">METRIC</th>
-                                <th style="text-align: right; width: 50%;">VALUE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td class="label">Total Tanks</td><td class="value">${stationData('tanks').length}</td></tr>
-                            <tr><td class="label">Total Pumps</td><td class="value">${stationData('pumps').length}</td></tr>
-                            <tr><td class="label">Active Shifts</td><td class="value">${stationData('shifts').filter(s => s.status === 'Active').length}</td></tr>
-                            <tr><td class="label">Closed Shifts</td><td class="value">${shifts.length}</td></tr>
-                            <tr><td class="label">Total Litres Sold (Closed)</td><td class="value">${fmt(petrolLitres + dieselLitres)} L</td></tr>
-                            <tr><td class="label">Total Revenue (Closed)</td><td class="value">${ugx(totalSales)}</td></tr>
-                            <tr><td class="label">Net Variance</td><td class="value ${totalSales - totalPurchasesCost < 0 ? 'text-danger' : 'text-success'}">${ugx(totalSales - totalPurchasesCost)}</td></tr>
-
-                            <tr style="background: #f4f7fb;"><td colspan="2" style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-light); padding-top: 20px; border-bottom: none;">Financial Details</td></tr>
-                            <tr><td class="label">Total Sales (Petrol + Diesel)</td><td class="value">${ugx(totalSales)}</td></tr>
-                            <tr><td class="label">Gross Profit</td><td class="value text-success">${ugx(grossProfit)}</td></tr>
-                            <tr><td class="label">Total Expenses</td><td class="value text-danger">${ugx(totalExpenses)}</td></tr>
-                            <tr><td class="label">Cash at Hand</td><td class="value">${ugx(totalCash)}</td></tr>
-                            <tr><td class="label">Airtel Money</td><td class="value">${ugx(totalAirtel)}</td></tr>
-                            <tr><td class="label">MTN MoMo</td><td class="value">${ugx(totalMomo)}</td></tr>
-                            <tr><td class="label">Total Credit</td><td class="value text-warning">${ugx(totalCredit)}</td></tr>
-                            <tr><td class="label">Purchases Cost</td><td class="value">${ugx(totalPurchasesCost)}</td></tr>
-
-                            <tr style="background: #f4f7fb;"><td colspan="2" style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-light); padding-top: 20px; border-bottom: none;">Inventory & Pricing</td></tr>
-                            <tr><td class="label">Dipping Variance (Gain)</td><td class="value text-success">+${fmt(dipGain)} L</td></tr>
-                            <tr><td class="label">Dipping Variance (Loss)</td><td class="value text-danger">-${fmt(dipLoss)} L</td></tr>
-                            <tr><td class="label">Petrol Price/L</td><td class="value">${ugx(state.prices['Petrol']?.price || 0)}</td></tr>
-                            <tr><td class="label">Diesel Price/L</td><td class="value">${ugx(state.prices['Diesel']?.price || 0)}</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-        $('#reportContent').innerHTML = html;
+            box.innerHTML = `
+                ${missing.length ? `<div class="info-box mb-16"><i class="fas fa-sync fa-spin"></i> Still syncing with the database (${missing.join(', ')}). This report will update automatically.</div>` : ''}
+                <div class="card" id="pdfReportArea">
+                    <div class="card-header" style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+                        <h3 style="font-size: 18px; color: var(--primary); margin: 0;">
+                            <i class="fas fa-chart-bar" style="color: var(--accent); margin-right: 8px;"></i> Station Performance Summary
+                        </h3>
+                        <span class="badge badge-blue fs-12" style="padding: 6px 12px;">${label}</span>
+                    </div>
+                    ${empty && !missing.length ? `<p class="text-light fs-13 mb-16">No closed shifts, purchases, dipping records or credit sales were found for this period.</p>` : ''}
+                    <div class="table-responsive">
+                        <table class="report-table">
+                            <thead><tr><th style="width: 50%;">METRIC</th><th style="text-align: right; width: 50%;">VALUE</th></tr></thead>
+                            <tbody>
+                                ${rep.rows.map(x => x.section
+                                    ? `<tr style="background: #f4f7fb;"><td colspan="2" style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-light); padding-top: 20px; border-bottom: none;">${x.section}</td></tr>`
+                                    : `<tr><td class="label">${x.label}</td><td class="value ${x.cls}">${x.value}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+        } catch (e) {
+            console.error('Report error:', e);
+            box.innerHTML = `<div class="card"><p class="text-danger fw-600">The report could not be generated.</p><p class="text-light fs-12 mt-8">${String(e && e.message || e)}</p></div>`;
+        }
     };
 
     window.downloadReportPDF = function() {
@@ -3348,18 +3412,23 @@ function initApp() {
     };
 
     window.exportCSV = function() {
-        const rows = [['Metric','Value']];
+        if (!state.currentUser) return;
+        if (!state.report) state.report = { mode: 'today', ...reportRangeFor('today') };
+        const { from, to } = state.report;
+        const rep = computeReport(from, to);
+        const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+        const rows = [['Metric', 'Value']];
         rows.push(['Company', state.companies.find(c => c._docId === state.currentUser.companyId)?.name || '-']);
         rows.push(['Station', state.currentStation?.name || '-']);
-        rows.push(['Tanks', stationData('tanks').length]);
-        rows.push(['Pumps', stationData('pumps').length]);
-        rows.push(['Closed Shifts', stationData('shifts').filter(s => s.status === 'Closed').length]);
-        const csv = rows.map(r => r.join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
+        rows.push(['Period', from === to ? from : `${from} to ${to}`]);
+        rep.rows.forEach(x => rows.push(x.section ? ['--- ' + x.section + ' ---', ''] : [x.label.trim(), x.value]));
+        const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'fuelflow-report.csv'; a.click();
-        URL.revokeObjectURL(url);
+        const stName = (state.currentStation?.name || 'station').replace(/[^a-z0-9]+/gi, '-');
+        a.href = url; a.download = `fuelflow-report-${stName}-${from}${to !== from ? '_to_' + to : ''}.csv`; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         toast('CSV exported.');
     };
 
