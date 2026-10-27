@@ -2565,7 +2565,17 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-truck"></i> Record Delivery</h3>
-                <div class="form-group"><label>Supplier</label><input type="text" id="puSupplier"></div>
+                <div class="form-group"><label>Supplier</label>
+                    <select id="puSupplier" class="modern-select">
+                        ${(() => {
+                            const list = stationData('suppliers').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                            const e = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            return list.length
+                                ? '<option value="">Select supplier...</option>' + list.map(x => `<option value="${e(x.name)}" data-id="${x._docId}">${e(x.name)}</option>`).join('')
+                                : '<option value="">No suppliers saved - add one under Suppliers</option>';
+                        })()}
+                    </select>
+                </div>
                 <div class="form-group"><label>Product</label>
                     <select id="puProduct" class="modern-select">
                         <option>Petrol</option><option>Diesel</option><option>Kerosene</option>
@@ -2595,7 +2605,8 @@ function initApp() {
         const cost = parseInt($('#puCost').value);
         const tankId = $('#puTank').value;
         const ref = $('#puRef').value.trim();
-        if (!supplier || !(qty > 0) || !(cost > 0) || !ref) { toast('Fill required fields.', 'error'); return; }
+        if (!supplier) { toast('Select a supplier. Add suppliers under Suppliers first.', 'error'); return; }
+        if (!(qty > 0) || !(cost > 0) || !ref) { toast('Fill required fields.', 'error'); return; }
         try {
             const sid = state.currentStation._docId;
             const tank = state.tanks.find(t => t.id === tankId && t.stationId === sid);
@@ -2604,7 +2615,7 @@ function initApp() {
             const batch = writeBatch(db);
             batch.set(doc(collection(db, 'purchases')), {
                 date: nowStr(), supplier, product, ordered, invoiced, qty, costPerLitre: cost, tank: tankId, ref,
-                shortfall: invoiced > 0 ? invoiced - qty : 0, verified: true, stationId: sid, companyId: state.currentUser.companyId
+                supplierId: $('#puSupplier').selectedOptions[0]?.dataset.id || '', shortfall: invoiced > 0 ? invoiced - qty : 0, verified: true, stationId: sid, companyId: state.currentUser.companyId
             });
             if (tank) {
                 batch.update(doc(db, 'tanks', tank._docId), { stock: increment(qty) });
