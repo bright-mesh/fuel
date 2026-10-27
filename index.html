@@ -46,6 +46,16 @@
         .w-full { width: 100%; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+        /* Custom Modern Select */
+        .modern-select {
+            width: 100%; padding: 13px 15px; border: 1.5px solid var(--border); border-radius: 12px;
+            font-size: 14px; transition: 0.2s; background: #fafcfe; cursor: pointer;
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236b7c8f%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 10px auto;
+        }
+        .modern-select:focus { border-color: var(--primary-light); outline: none; box-shadow: 0 0 0 4px rgba(30, 74, 110, 0.08); background-color: white; }
+
         /* ============ LANDING PAGE ============ */
         .landing {
             position: fixed; inset: 0; z-index: 2000;
@@ -153,7 +163,7 @@
         .contact-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         .contact-form .form-group { margin-bottom: 20px; }
         
-        /* --- FIXED: Labels are now explicitly white with high specificity --- */
+        /* --- FIXED: Labels are explicitly white --- */
         .contact-form label, 
         .contact-form .form-group label { 
             display: block; 
@@ -820,7 +830,7 @@ function initApp() {
         { key: 'tanks', label: 'Tanks' },
         { key: 'pumps', label: 'Pumps' },
         { key: 'attendants', label: 'Attendants' },
-        { key: 'customers', label: 'Customers' },
+        { key: 'customers', label: 'Customers (Credit)' },
         { key: 'purchases', label: 'Purchases' },
         { key: 'priceboard', label: 'Price Board' },
         { key: 'shifts', label: 'Shifts' },
@@ -862,7 +872,7 @@ function initApp() {
         prices: {
             Petrol: { price: 5200, effective: '2025-04-10 08:00' },
             Diesel: { price: 4900, effective: '2025-04-10 08:00' },
-            Premium: { price: 5800, effective: '2025-04-10 08:00' }
+            Kerosene: { price: 5800, effective: '2025-04-10 08:00' }
         },
         varianceThreshold: 100,
         unsubscribers: []
@@ -1233,7 +1243,7 @@ function initApp() {
                 { page: 'tanks', icon: 'database', label: 'Tanks' },
                 { page: 'pumps', icon: 'oil-can', label: 'Pumps' },
                 { page: 'attendants', icon: 'users', label: 'Attendants' },
-                { page: 'customers', icon: 'user-tag', label: 'Customers' },
+                { page: 'customers', icon: 'user-tag', label: 'Customers (Credit)' },
                 { page: 'purchases', icon: 'truck', label: 'Purchases' },
                 { page: 'priceboard', icon: 'tags', label: 'Price Board' },
                 { page: 'shifts', icon: 'clock', label: 'Shifts' }
@@ -1987,7 +1997,13 @@ function initApp() {
                 <h3><i class="fas fa-database"></i> ${t ? 'Edit' : 'Add'} Tank</h3>
                 <div class="form-group"><label>Tank ID</label><input type="text" id="tkId" value="${t ? t.id : 'T-' + String(state.tanks.length + 1).padStart(2, '0')}" ${t ? 'readonly' : ''}></div>
                 <div class="form-group"><label>Name</label><input type="text" id="tkName" value="${t ? t.name : ''}"></div>
-                <div class="form-group"><label>Product</label><select id="tkProduct"><option ${t && t.product === 'Petrol' ? 'selected' : ''}>Petrol</option><option ${t && t.product === 'Diesel' ? 'selected' : ''}>Diesel</option><option ${t && t.product === 'Premium' ? 'selected' : ''}>Premium</option></select></div>
+                <div class="form-group"><label>Product</label>
+                    <select id="tkProduct" class="modern-select">
+                        <option ${t && t.product === 'Petrol' ? 'selected' : ''}>Petrol</option>
+                        <option ${t && t.product === 'Diesel' ? 'selected' : ''}>Diesel</option>
+                        <option ${t && t.product === 'Kerosene' ? 'selected' : ''}>Kerosene</option>
+                    </select>
+                </div>
                 <div class="form-group"><label>Capacity (L)</label><input type="number" id="tkCapacity" value="${t ? t.capacity : 20000}"></div>
                 <div class="form-group"><label>Current Stock (L)</label><input type="number" id="tkStock" value="${t ? t.stock : 0}"></div>
                 <div class="form-group"><label>Colour</label><input type="color" id="tkColor" value="${t ? t.color : '#f5a623'}" style="height:44px;padding:4px;"></div>
@@ -2044,7 +2060,7 @@ function initApp() {
             <div class="modal-card">
                 <h3><i class="fas fa-sliders-h"></i> Adjust — ${tank.name}</h3>
                 <div class="warning-box mb-16"><i class="fas fa-exclamation-triangle"></i> Requires approval.</div>
-                <div class="form-group"><label>Type</label><select id="adjType"><option value="add">Add</option><option value="subtract">Subtract</option><option value="set">Set Exact</option></select></div>
+                <div class="form-group"><label>Type</label><select id="adjType" class="modern-select"><option value="add">Add</option><option value="subtract">Subtract</option><option value="set">Set Exact</option></select></div>
                 <div class="form-group"><label>Litres</label><input type="number" id="adjQty"></div>
                 <div class="form-group"><label>Reason</label><textarea id="adjReason" rows="2"></textarea></div>
                 <div class="modal-actions">
@@ -2105,8 +2121,14 @@ function initApp() {
                 <h3><i class="fas fa-oil-can"></i> ${p ? 'Edit' : 'Add'} Pump</h3>
                 <div class="form-group"><label>Pump ID</label><input type="text" id="pmId" value="${p ? p.id : 'P-' + String(state.pumps.length + 1).padStart(2, '0')}" ${p ? 'readonly' : ''}></div>
                 <div class="form-group"><label>Name</label><input type="text" id="pmName" value="${p ? p.name : ''}"></div>
-                <div class="form-group"><label>Product</label><select id="pmProduct"><option ${p && p.product === 'Petrol' ? 'selected' : ''}>Petrol</option><option ${p && p.product === 'Diesel' ? 'selected' : ''}>Diesel</option><option ${p && p.product === 'Premium' ? 'selected' : ''}>Premium</option></select></div>
-                <div class="form-group"><label>Tank</label><select id="pmTank">${tanks.map(t => `<option value="${t.id}" ${p && p.tankId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}</select></div>
+                <div class="form-group"><label>Product</label>
+                    <select id="pmProduct" class="modern-select">
+                        <option ${p && p.product === 'Petrol' ? 'selected' : ''}>Petrol</option>
+                        <option ${p && p.product === 'Diesel' ? 'selected' : ''}>Diesel</option>
+                        <option ${p && p.product === 'Kerosene' ? 'selected' : ''}>Kerosene</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Tank</label><select id="pmTank" class="modern-select">${tanks.map(t => `<option value="${t.id}" ${p && p.tankId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}</select></div>
                 <div class="form-group"><label>Last Meter</label><input type="number" id="pmMeter" value="${p ? p.lastMeter : 0}"></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
@@ -2189,7 +2211,7 @@ function initApp() {
                 <div class="form-group"><label>Employee ID</label><input type="text" id="atId" value="${a ? a.id : 'A-' + (101 + state.attendants.length)}" ${a ? 'readonly' : ''}></div>
                 <div class="form-group"><label>Full Name</label><input type="text" id="atName" value="${a ? a.name : ''}"></div>
                 <div class="form-group"><label>Phone</label><input type="text" id="atPhone" value="${a ? a.phone : ''}"></div>
-                <div class="form-group"><label>Status</label><select id="atStatus"><option ${a && a.status === 'Active' ? 'selected' : ''}>Active</option><option ${a && a.status === 'On Leave' ? 'selected' : ''}>On Leave</option><option ${a && a.status === 'Suspended' ? 'selected' : ''}>Suspended</option></select></div>
+                <div class="form-group"><label>Status</label><select id="atStatus" class="modern-select"><option ${a && a.status === 'Active' ? 'selected' : ''}>Active</option><option ${a && a.status === 'On Leave' ? 'selected' : ''}>On Leave</option><option ${a && a.status === 'Suspended' ? 'selected' : ''}>Suspended</option></select></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
                     <button class="btn btn-primary" onclick="saveAttendant('${docId || ''}')">Save</button>
@@ -2232,12 +2254,12 @@ function initApp() {
         } catch (e) { toast('Failed to delete attendant.', 'error'); }
     };
 
-    // ================= CUSTOMERS =================
+    // ================= CUSTOMERS (CREDIT) =================
     function renderCustomers(el) {
         const customers = stationData('customers');
         const canDelete = isManagerOrOwner();
         el.innerHTML = `
-            <div class="page-header"><h1>Customers</h1><div class="actions"><button class="btn btn-accent" onclick="openCustomerModal()"><i class="fas fa-plus"></i> Add Customer</button></div></div>
+            <div class="page-header"><h1>Customers (Credit)</h1><div class="actions"><button class="btn btn-accent" onclick="openCustomerModal()"><i class="fas fa-plus"></i> Add Customer</button></div></div>
             <div class="card table-responsive">
                 <table>
                     <thead><tr><th>Name</th><th>Phone</th><th>Company</th><th>Credit Balance</th><th>Actions</th></tr></thead>
@@ -2365,8 +2387,22 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-file-invoice"></i> Record Credit Sale</h3>
-                <div class="form-group"><label>Description (e.g. 50L Petrol)</label><input type="text" id="csDesc"></div>
-                <div class="form-group"><label>Amount (UGX)</label><input type="number" id="csAmount"></div>
+                <div class="form-group">
+                    <label>Product</label>
+                    <select id="csProduct" class="modern-select" onchange="calcCreditSaleTotal()">
+                        <option value="Petrol">Petrol</option>
+                        <option value="Diesel">Diesel</option>
+                        <option value="Kerosene">Kerosene</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Litres</label>
+                    <input type="number" id="csLitres" oninput="calcCreditSaleTotal()" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>Total Price (UGX)</label>
+                    <input type="number" id="csAmount" readonly style="background:#f0f4f9; font-weight:700;">
+                </div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
                     <button class="btn btn-primary" onclick="saveCustomerSale('${customerId}')">Save Sale</button>
@@ -2374,12 +2410,24 @@ function initApp() {
             </div>
         `;
         document.body.appendChild(modal);
+        calcCreditSaleTotal();
+    };
+
+    window.calcCreditSaleTotal = function() {
+        const product = document.getElementById('csProduct').value;
+        const litres = parseFloat(document.getElementById('csLitres').value) || 0;
+        const price = state.prices[product]?.price || 0;
+        const total = litres * price;
+        document.getElementById('csAmount').value = total;
     };
 
     window.saveCustomerSale = async function(customerId) {
-        const desc = $('#csDesc').value.trim();
+        const product = $('#csProduct').value;
+        const litres = parseFloat($('#csLitres').value) || 0;
         const amount = parseInt($('#csAmount').value);
-        if (!desc || !amount) { toast('Fill all fields.', 'error'); return; }
+        if (!litres || !amount) { toast('Fill all fields.', 'error'); return; }
+        const desc = `${litres}L ${product}`;
+        
         try {
             await addDoc(collection(db, 'customer_ledger'), {
                 customerId, type: 'sale', description: desc, amount,
@@ -2400,8 +2448,11 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-money-bill"></i> Record Payment</h3>
-                <div class="form-group"><label>Payment Method</label>
-                    <select id="cpMethod"><option>Cash</option><option>Airtel Money</option><option>MTN MoMo</option><option>Bank Transfer</option></select>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="cpMethod" class="modern-select">
+                        <option>Cash</option><option>Airtel Money</option><option>MTN MoMo</option><option>Bank Transfer</option>
+                    </select>
                 </div>
                 <div class="form-group"><label>Amount (UGX)</label><input type="number" id="cpAmount"></div>
                 <div class="modal-actions">
@@ -2463,12 +2514,16 @@ function initApp() {
             <div class="modal-card">
                 <h3><i class="fas fa-truck"></i> Record Delivery</h3>
                 <div class="form-group"><label>Supplier</label><input type="text" id="puSupplier"></div>
-                <div class="form-group"><label>Product</label><select id="puProduct"><option>Petrol</option><option>Diesel</option><option>Premium</option></select></div>
+                <div class="form-group"><label>Product</label>
+                    <select id="puProduct" class="modern-select">
+                        <option>Petrol</option><option>Diesel</option><option>Kerosene</option>
+                    </select>
+                </div>
                 <div class="form-group"><label>Ordered (L)</label><input type="number" id="puOrdered"></div>
                 <div class="form-group"><label>Invoiced (L)</label><input type="number" id="puInvoiced"></div>
                 <div class="form-group"><label>Received (L)</label><input type="number" id="puQty"></div>
                 <div class="form-group"><label>Cost/L (UGX)</label><input type="number" id="puCost"></div>
-                <div class="form-group"><label>Tank</label><select id="puTank">${tanks.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select></div>
+                <div class="form-group"><label>Tank</label><select id="puTank" class="modern-select">${tanks.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select></div>
                 <div class="form-group"><label>Invoice Ref</label><input type="text" id="puRef"></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
@@ -2559,7 +2614,12 @@ function initApp() {
             <div class="modal-card">
                 <h3><i class="fas fa-tags"></i> Update Price</h3>
                 <div class="warning-box mb-16"><i class="fas fa-exclamation-triangle"></i> Requires approval.</div>
-                <div class="form-group"><label>Product</label><select id="prProduct">${Object.keys(state.prices).map(p => `<option ${product === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+                <div class="form-group">
+                    <label>Product</label>
+                    <select id="prProduct" class="modern-select">
+                        ${Object.keys(state.prices).map(p => `<option ${product === p ? 'selected' : ''}>${p}</option>`).join('')}
+                    </select>
+                </div>
                 <div class="form-group"><label>New Price/L</label><input type="number" id="prPrice" value="${current ? current.price : 5000}"></div>
                 <div class="form-group"><label>Reason</label><textarea id="prReason" rows="2"></textarea></div>
                 <div class="modal-actions">
@@ -2689,8 +2749,8 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-play-circle"></i> Start Shift</h3>
-                <div class="form-group"><label>Attendant</label><select id="shAttendant">${attendants.map(a => `<option value="${a.name}">${a.name} (${a.id})</option>`).join('')}</select></div>
-                <div class="form-group"><label>Pump</label><select id="shPump">${pumps.map(p => {
+                <div class="form-group"><label>Attendant</label><select id="shAttendant" class="modern-select">${attendants.map(a => `<option value="${a.name}">${a.name} (${a.id})</option>`).join('')}</select></div>
+                <div class="form-group"><label>Pump</label><select id="shPump" class="modern-select">${pumps.map(p => {
                     const tank = tanks.find(t => t.id === p.tankId);
                     return `<option value="${p.id}">${p.name} — ${p.product} (${tank ? tank.name : p.tankId})</option>`;
                 }).join('')}</select></div>
@@ -2862,7 +2922,7 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-ruler-vertical"></i> Record Dipping</h3>
-                <div class="form-group"><label>Tank</label><select id="dpTank">${tanks.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select></div>
+                <div class="form-group"><label>Tank</label><select id="dpTank" class="modern-select">${tanks.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select></div>
                 <div class="form-group"><label>Physical Stock (L)</label><input type="number" id="dpPhysical"></div>
                 <div class="form-group"><label>Notes</label><input type="text" id="dpNotes"></div>
                 <div class="modal-actions">
@@ -2942,7 +3002,7 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-money-bill-wave"></i> Cashbook Entry</h3>
-                <div class="form-group"><label>Type</label><select id="cbType"><option value="deposit">Bank Deposit</option><option value="mobile_settlement">Mobile Money Settlement</option><option value="expense">Expense</option><option value="cash_drop">Cash Drop</option></select></div>
+                <div class="form-group"><label>Type</label><select id="cbType" class="modern-select"><option value="deposit">Bank Deposit</option><option value="mobile_settlement">Mobile Money Settlement</option><option value="expense">Expense</option><option value="cash_drop">Cash Drop</option></select></div>
                 <div class="form-group"><label>Description</label><input type="text" id="cbDesc"></div>
                 <div class="form-group"><label>Amount (UGX) — positive in / negative out</label><input type="number" id="cbAmount"></div>
                 <div class="form-group"><label>Reference</label><input type="text" id="cbRef"></div>
@@ -3094,11 +3154,11 @@ function initApp() {
             <div class="modal-card">
                 <h3><i class="fas fa-wrench"></i> Log Maintenance</h3>
                 <div class="form-group"><label>Equipment</label><input type="text" id="mnEquip"></div>
-                <div class="form-group"><label>Type</label><select id="mnType"><option>Service</option><option>Inspection</option><option>Calibration</option><option>Repair</option><option>Safety Check</option></select></div>
+                <div class="form-group"><label>Type</label><select id="mnType" class="modern-select"><option>Service</option><option>Inspection</option><option>Calibration</option><option>Repair</option><option>Safety Check</option></select></div>
                 <div class="form-group"><label>Description</label><textarea id="mnDesc" rows="2"></textarea></div>
                 <div class="form-group"><label>Technician</label><input type="text" id="mnTech"></div>
                 <div class="form-group"><label>Cost (UGX)</label><input type="number" id="mnCost" value="0"></div>
-                <div class="form-group"><label>Status</label><select id="mnStatus"><option>Completed</option><option>Pending</option></select></div>
+                <div class="form-group"><label>Status</label><select id="mnStatus" class="modern-select"><option>Completed</option><option>Pending</option></select></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
                     <button class="btn btn-primary" onclick="saveMaintenance()">Save</button>
@@ -3448,7 +3508,7 @@ function initApp() {
                 <div class="form-group"><label>Full Name</label><input type="text" id="nuName"></div>
                 <div class="form-group"><label>Username</label><input type="text" id="nuUsername"></div>
                 <div class="form-group"><label>Password</label><input type="password" id="nuPassword"></div>
-                <div class="form-group"><label>Role</label><select id="nuRole" onchange="updatePermPreview()"><option value="manager">Manager</option><option value="accountant">Accountant</option><option value="stock_officer">Stock Officer</option><option value="cashier">Cashier</option><option value="attendant">Attendant</option><option value="user">User</option></select></div>
+                <div class="form-group"><label>Role</label><select id="nuRole" class="modern-select" onchange="updatePermPreview()"><option value="manager">Manager</option><option value="accountant">Accountant</option><option value="stock_officer">Stock Officer</option><option value="cashier">Cashier</option><option value="attendant">Attendant</option><option value="user">User</option></select></div>
                 <div class="form-group"><label>Permissions</label><div id="permChecks" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${ALL_PERMISSIONS.map(p => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f0f4f9;padding:5px 10px;border-radius:30px;cursor:pointer;"><input type="checkbox" class="perm-check" value="${p.key}" checked> ${p.label}</label>`).join('')}</div></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
@@ -3502,7 +3562,7 @@ function initApp() {
         modal.innerHTML = `
             <div class="modal-card">
                 <h3><i class="fas fa-user-edit"></i> Edit — ${u.name}</h3>
-                <div class="form-group"><label>Role</label><select id="euRole"><option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager</option><option value="accountant" ${u.role === 'accountant' ? 'selected' : ''}>Accountant</option><option value="stock_officer" ${u.role === 'stock_officer' ? 'selected' : ''}>Stock Officer</option><option value="cashier" ${u.role === 'cashier' ? 'selected' : ''}>Cashier</option><option value="attendant" ${u.role === 'attendant' ? 'selected' : ''}>Attendant</option><option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option></select></div>
+                <div class="form-group"><label>Role</label><select id="euRole" class="modern-select"><option value="manager" ${u.role === 'manager' ? 'selected' : ''}>Manager</option><option value="accountant" ${u.role === 'accountant' ? 'selected' : ''}>Accountant</option><option value="stock_officer" ${u.role === 'stock_officer' ? 'selected' : ''}>Stock Officer</option><option value="cashier" ${u.role === 'cashier' ? 'selected' : ''}>Cashier</option><option value="attendant" ${u.role === 'attendant' ? 'selected' : ''}>Attendant</option><option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option></select></div>
                 <div class="form-group"><label>Permissions</label><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${ALL_PERMISSIONS.map(p => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f0f4f9;padding:5px 10px;border-radius:30px;cursor:pointer;"><input type="checkbox" class="edit-perm-check" value="${p.key}" ${(u.permissions||[]).includes(p.key) ? 'checked' : ''}> ${p.label}</label>`).join('')}</div></div>
                 <div class="modal-actions">
                     <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
