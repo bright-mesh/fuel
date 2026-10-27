@@ -3347,7 +3347,6 @@ function initApp() {
         row('Closed Shifts (period)', shifts.length);
         productKeys.forEach(k => row('Total Litres Sold (' + k + ')', fmt(byProduct[k]) + ' L'));
         row('Total Litres Sold (All Products)', fmt(totalLitres) + ' L');
-        row('Total Revenue (Closed)', ugx(totalSales));
         row('Net Shift Variance', (shiftVariance > 0 ? '+' : shiftVariance < 0 ? '-' : '') + ugx(Math.abs(shiftVariance)), shiftVariance < 0 ? 'text-danger' : 'text-success');
 
         sec('Financial Details');
